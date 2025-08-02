@@ -1,0 +1,21 @@
+export type FrontendItem = {
+  id: string;
+  name: string;
+  sellingPrice: number;
+  purchasePrice?: number;
+  stockQuantity?: number;
+  minStockLevel?: number;
+  category?: string;
+  branchId: string;
+  profitPerUnit?: number;
+  profitMargin?: number;
+  barcode?: string;
+  isActive: boolean;
+  productType: "retail" | "service" | "processed" | "raw_material" | "combo";
+  unit?: string;
+  subUnit?: string;
+  conversionFactor?: number;
+  rawMaterials?: { itemId: string; quantityNeeded: number }[];
+  createdAt?: Date;
+  updatedAt?: Date;
+};

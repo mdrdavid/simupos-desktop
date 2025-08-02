@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 240 10% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 10%;
+
+    --primary: 171 100% 35%; /* Teal Green */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 42 100% 60%; /* Amber/Gold */
+    --secondary-foreground: 0 0% 15%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 217 100% 90%;
+    --accent-foreground: 240 10% 10%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 171 100% 35%;
+
+    --radius: 0.5rem;
+
+    --chart-1: 171 100% 35%;
+    --chart-2: 42 100% 60%;
+    --chart-3: 12 100% 61%;
+    --chart-4: 221 83% 53%;
+    --chart-5: 300 73% 58%;
+  }
+
+  .dark {
+    --background: 240 10% 10%;
+    --foreground: 0 0% 100%;
+    --card: 240 10% 12%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 240 10% 12%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 171 100% 35%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 42 100% 60%;
+    --secondary-foreground: 0 0% 15%;
+
+    --muted: 240 10% 20%;
+    --muted-foreground: 240 10% 70%;
+
+    --accent: 217 100% 25%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 65% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 10% 30%;
+    --input: 240 10% 25%;
+    --ring: 171 100% 35%;
+
+    --chart-1: 171 100% 35%;
+    --chart-2: 42 100% 60%;
+    --chart-3: 12 100% 61%;
+    --chart-4: 221 83% 53%;
+    --chart-5: 300 73% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  @apply bg-gray-100 dark:bg-muted rounded-full;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 dark:bg-gray-600 rounded-full hover:bg-gray-400 dark:hover:bg-gray-500;
+}
+
+/* Animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Responsive utilities */
+.mobile-container {
+  @apply px-4 sm:px-6 lg:px-8;
+}
+.mobile-grid {
+  @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4;
+}

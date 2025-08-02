@@ -21,8 +21,7 @@ export enum SubscriptionStatus {
 }
 
 @Entity("subscriptions")
-// @Index(["userId", "status"])
-@Index(["userId", "subscriptionStatus"])
+@Index(["userId", "status"])
 export class Subscription {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
@@ -33,11 +32,12 @@ export class Subscription {
 
   @Column("uuid")
   planId!: string;
-@Column({
-  type: "text",
-  default: SubscriptionStatus.ACTIVE,
-})
-status!: SubscriptionStatus;
+  @Column({
+    type: "text",
+    default: SubscriptionStatus.ACTIVE,
+    name: "subscriptionStatus",
+  })
+  status!: SubscriptionStatus;
 
   @Column("decimal", { precision: 10, scale: 2 })
   @IsNumber()
@@ -56,7 +56,8 @@ status!: SubscriptionStatus;
   @Column({ default: false })
   autoRenew!: boolean;
 
-  @Column({ type: "jsonb", nullable: true })
+  data!: Record<string, any>;
+  @Column({ type: "simple-json", nullable: true })
   features?: Record<string, any>;
 
   @ManyToOne(() => User, { onDelete: "CASCADE" })
@@ -72,7 +73,7 @@ status!: SubscriptionStatus;
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   lastSyncAt?: Date;
 
   @Column({ default: false })
@@ -84,9 +85,9 @@ status!: SubscriptionStatus;
   @Column({ nullable: true })
   trialEndDate?: Date;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   cancelledAt?: Date | null;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   expiredAt?: Date | null;
 }

@@ -10,6 +10,7 @@ import { ApiError } from "../utils/ApiError";
 import { SyncService } from "./SyncService";
 import { SyncOperation } from "../models/SyncLog";
 import { PaymentMethod } from "../models/WeldingInvoicePayment";
+import { QuoteStatus } from "../models/WeldingQuote";
 
 export class WeldingInvoiceService {
   private invoiceRepository: Repository<WeldingInvoice>;
@@ -97,7 +98,7 @@ export class WeldingInvoiceService {
     await queryRunner.manager.save(lineItemEntities);
 
     // Update quote status
-    quote.status = "Invoiced";
+    quote.status = QuoteStatus.INVOICED;
     await queryRunner.manager.save(quote);
 
     await queryRunner.commitTransaction();

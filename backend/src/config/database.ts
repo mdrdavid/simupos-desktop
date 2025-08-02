@@ -37,7 +37,7 @@ import {
 export const AppDataSource = new DataSource({
   type: "sqlite",
   database: "db/simpos.sqlite",
-  synchronize: true, // Should be true for development to auto-create schema
+//  synchronize: process.env.NODE_ENV !== 'production', // Only sync in development
   logging: true, // Set to true to see SQL queries
   entities: [
     User,

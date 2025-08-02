@@ -1,6 +1,6 @@
 import { Repository } from "typeorm";
 import { AppDataSource } from "../config/database";
-import { Expense } from "../models/Expense";
+import { Expense, PaymentMethod } from "../models/Expense";
 import { ApiError } from "../utils/ApiError";
 import { SyncService } from "./SyncService";
 import { SyncOperation } from "../models/SyncLog";
@@ -19,7 +19,7 @@ export class ExpenseService {
     category: string;
     description?: string;
     date: Date;
-    paymentMethod: "cash" | "bank" | "mobile_money";
+    paymentMethod: PaymentMethod;
     receiptNumber?: string;
     vendor?: string;
     isRecurring?: boolean;

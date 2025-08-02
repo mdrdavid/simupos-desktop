@@ -29,8 +29,7 @@ export class Transaction {
   amount!: number;
 
   @Column({
-    type: "enum",
-    enum: ["cash", "mtn_momo", "airtel_money"],
+    type: "text",
     default: "cash",
   })
   paymentMethod!: PaymentMethod;

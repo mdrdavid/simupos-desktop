@@ -1,4 +1,3 @@
-
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -26,7 +25,7 @@ export class CreditEntry {
   @Column({ nullable: true })
   customerPhone?: string;
 
-  @Column("jsonb")
+  @Column("simple-json")
   items!: Array<{
     itemId: string;
     itemName: string;
@@ -50,11 +49,7 @@ export class CreditEntry {
   @Column("date", { nullable: true })
   dueDate?: Date;
 
-  @Column({
-    type: "enum",
-    enum: ["unpaid", "partially_paid", "paid"],
-    default: "unpaid",
-  })
+  @Column({ type: "text", default: "unpaid" })
   status!: CreditStatus;
 
   // Relations

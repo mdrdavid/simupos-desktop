@@ -1,4 +1,3 @@
-
 import { Repository } from "typeorm";
 import { AppDataSource } from "../config/database";
 import { AgroSale, AgroProductSaleItem } from "../models";
@@ -6,6 +5,8 @@ import { ApiError } from "../utils/ApiError";
 import { SyncService } from "./SyncService";
 import { SyncOperation } from "../models/SyncLog";
 import { AgroProductService } from "./AgroProductService";
+import { PaymentMethod } from "../models/Transaction";
+import { AgroPaymentMethod } from "../models/AgroSale";
 
 export class AgroTransactionService {
   private saleRepository: Repository<AgroSale>;
@@ -38,7 +39,7 @@ export class AgroTransactionService {
       phoneNumber?: string;
       address?: string;
     };
-    paymentMethod?: "cash" | "mobile_money" | "bank_transfer" | "other";
+    paymentMethod?: AgroPaymentMethod;
     branchId: string;
     userId: string;
   }) {

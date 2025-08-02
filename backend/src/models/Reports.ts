@@ -33,11 +33,10 @@ export class Report {
 })
 type!: ReportType;
 
-
-  @Column("jsonb")
+   @Column("simple-json")
   filters!: Record<string, any>;
 
-  @Column("jsonb")
+  @Column("simple-json")
   data!: Record<string, any>;
 
   @ManyToOne(() => Business)

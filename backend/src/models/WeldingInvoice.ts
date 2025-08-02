@@ -68,9 +68,8 @@ export class WeldingInvoice {
   paymentsMade!: WeldingInvoicePayment[];
 
   @Column({
-    type: "enum",
-    enum: ["Unpaid", "Partially Paid", "Paid", "Overdue"],
-    default: "Unpaid",
+    type: "text",
+    default: "Unpaid", //"Unpaid", "Partially Paid", "Paid", "Overdue"
   })
   paymentStatus!: string;
 
@@ -98,7 +97,7 @@ export class WeldingInvoice {
   @ManyToOne(() => WeldingJob, (job) => job.invoices)
   weldingJob!: WeldingJob;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   lastSyncAt?: Date;
 
   @Column({ default: false })

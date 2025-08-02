@@ -39,7 +39,7 @@ export class WeldingMaterialStock {
   @ManyToOne(() => Branch, branch => branch.weldingMaterialStock)
   branch!: Branch;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   lastSyncAt?: Date;
 
   @Column({ default: false })

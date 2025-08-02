@@ -1,7 +1,7 @@
 {
-  "name": "simpos-desktop",
+  "name": "simupos-desktop",
   "version": "1.0.0",
-  "description": "A desktop application for Simpos",
+  "description": "A desktop application for Simupos",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

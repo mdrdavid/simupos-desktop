@@ -30,9 +30,9 @@ export class StockMovement {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
 
- @Column("text")
-@IsEnum(MovementType)
-type!: MovementType;
+  @Column("text")
+  @IsEnum(MovementType)
+  type!: MovementType;
 
   @Column("int")
   @IsNumber()
@@ -66,7 +66,7 @@ type!: MovementType;
   @Column("uuid")
   itemId!: string;
 
-  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => User, { nullable: true, onDelete: "SET NULL" })
   @JoinColumn({ name: "userId" })
   user?: User;
 
@@ -76,7 +76,7 @@ type!: MovementType;
   @CreateDateColumn()
   createdAt!: Date;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   lastSyncAt?: Date;
 
   @Column({ default: false })

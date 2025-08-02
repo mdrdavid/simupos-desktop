@@ -1,4 +1,3 @@
-// src/models/Expense.ts
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -10,10 +9,12 @@ import {
 } from "typeorm";
 import { Branch } from "./Branch";
 import { User } from "./User";
-import { IsNumber, IsOptional, Min } from "class-validator";
-
-export type PaymentMethod = "cash" | "bank" | "mobile_money";
-
+import { IsIn, IsNumber, IsOptional, Min } from "class-validator";
+export enum PaymentMethod {
+  CASH = "cash",
+  BANK = "bank",
+  MOBILE_MONEY = "mobile_money",
+}
 @Entity("expenses")
 export class Expense {
   @PrimaryGeneratedColumn("uuid")
@@ -36,11 +37,9 @@ export class Expense {
   date!: Date;
 
   @Column({
-    type: "enum",
-    enum: ["cash", "bank", "mobile_money"],
-    default: "cash",
+    type: "text",
+    default: PaymentMethod.CASH,
   })
-  @IsOptional()
   paymentMethod!: PaymentMethod;
 
   @Column({ nullable: true })
@@ -79,5 +78,3 @@ export class Expense {
   @UpdateDateColumn()
   updatedAt!: Date;
 }
-
-

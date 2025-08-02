@@ -1,6 +1,6 @@
 import { Repository } from "typeorm";
 import { AppDataSource } from "../config/database";
-import { Customer } from "../models/Customer";
+import { Customer, CustomerType } from "../models/Customer";
 import { ApiError } from "../utils/ApiError";
 import { SyncService } from "./SyncService";
 import { SyncOperation } from "../models/SyncLog";
@@ -20,7 +20,7 @@ export class CustomerService {
     email?: string;
     gender?: string;
     birthday?: Date;
-    customerType?: "Regular" | "VIP" | "Wholesale";
+    customerType?: CustomerType
     notes?: string;
     branchId: string;
     userId: string;

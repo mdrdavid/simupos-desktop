@@ -28,13 +28,11 @@ export enum UserRole {
   SALES_REP = "sales_rep",
 }
 
-
 export enum UserStatus {
   ACTIVE = "active",
   INACTIVE = "inactive",
   SUSPENDED = "suspended",
 }
-
 @Entity("users")
 @Index(["email"], { unique: true })
 @Index(["phone"], { unique: true })
@@ -91,13 +89,13 @@ status!: UserStatus;
 preferences?: Record<string, any>;
 
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   lastLoginAt?: Date;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   emailVerifiedAt?: Date;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   phoneVerifiedAt?: Date;
 
   @OneToMany(() => Business, (business) => business.owner)
@@ -125,7 +123,7 @@ preferences?: Record<string, any>;
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   lastSyncAt?: Date;
 
   @OneToMany(() => Subscription, (subscription) => subscription.user)
@@ -137,7 +135,7 @@ preferences?: Record<string, any>;
   @Column({ nullable: true })
   otpCode?: string;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   otpExpiresAt?: Date | undefined;
 
   @Column({ default: false })
@@ -145,15 +143,8 @@ preferences?: Record<string, any>;
   @Column({ default: false })
   isActive!: boolean;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   lastLogoutAt?: Date | undefined;
-
-  // createdBy as a JSONB column
-  // @Column({ type: "jsonb", nullable: true })
-  // createdBy?: {
-  //   id: string;
-  //   name: string;
-  // };
 
   @ManyToOne(() => User, (user) => user.createdUsers, { nullable: true })
   @JoinColumn({ name: "createdById" })

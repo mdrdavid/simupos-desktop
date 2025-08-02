@@ -1,0 +1,55 @@
+{
+  "name": "simpos-desktop",
+  "version": "1.0.0",
+  "description": "A desktop application for Simpos",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "npm run build --prefix frontend && npm run build --prefix backend && npx electron-builder",
+    "postinstall": "npm install --prefix frontend && npm install --prefix backend"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mdrdavid/simupos-desktop.git"
+  },
+  "keywords": [
+    "electron",
+    "simpos"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/mdrdavid/simupos-desktop/issues"
+  },
+  "homepage": "https://github.com/mdrdavid/simupos-desktop#readme",
+  "devDependencies": {
+    "electron": "37.2.5",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.simpos.desktop",
+    "productName": "Simpos Desktop",
+    "files": [
+      "main.js",
+      "backend/dist/**/*",
+      "backend/node_modules/**/*",
+      "frontend/.next/**/*",
+      "frontend/public/**/*",
+      "frontend/package.json",
+      "frontend/node_modules/**/*",
+      "node_modules/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

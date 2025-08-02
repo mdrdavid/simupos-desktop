@@ -27,12 +27,12 @@ export class Report {
   @Column()
   name!: string;
 
-  @Column({
-    type: "enum",
-    enum: ReportType,
-    default: ReportType.SALES,
-  })
-  type!: ReportType;
+ @Column({
+  type: "text",
+  default: ReportType.SALES,
+})
+type!: ReportType;
+
 
   @Column("jsonb")
   filters!: Record<string, any>;

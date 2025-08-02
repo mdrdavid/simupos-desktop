@@ -30,12 +30,9 @@ export class StockMovement {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
 
-  @Column({
-    type: "enum",
-    enum: MovementType,
-  })
-  @IsEnum(MovementType)
-  type!: MovementType;
+ @Column("text")
+@IsEnum(MovementType)
+type!: MovementType;
 
   @Column("int")
   @IsNumber()

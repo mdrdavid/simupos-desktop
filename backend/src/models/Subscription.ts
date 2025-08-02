@@ -21,7 +21,8 @@ export enum SubscriptionStatus {
 }
 
 @Entity("subscriptions")
-@Index(["userId", "status"])
+// @Index(["userId", "status"])
+@Index(["userId", "subscriptionStatus"])
 export class Subscription {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
@@ -32,13 +33,11 @@ export class Subscription {
 
   @Column("uuid")
   planId!: string;
-  @Column({
-    type: "enum",
-    enum: SubscriptionStatus,
-    default: SubscriptionStatus.ACTIVE,
-  })
-  @IsEnum(SubscriptionStatus)
-  status!: SubscriptionStatus;
+@Column({
+  type: "text",
+  default: SubscriptionStatus.ACTIVE,
+})
+status!: SubscriptionStatus;
 
   @Column("decimal", { precision: 10, scale: 2 })
   @IsNumber()

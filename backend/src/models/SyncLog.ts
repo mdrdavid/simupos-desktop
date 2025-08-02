@@ -35,20 +35,18 @@ export class SyncLog {
   @IsNotEmpty()
   entityId!: string;
 
-  @Column({
-    type: "enum",
-    enum: SyncOperation,
-  })
-  @IsEnum(SyncOperation)
-  operation!: SyncOperation;
+@Column({
+  type: "text",
+})
+@IsEnum(SyncOperation)
+operation!: SyncOperation;
 
-  @Column({
-    type: "enum",
-    enum: SyncStatus,
-    default: SyncStatus.PENDING,
-  })
-  @IsEnum(SyncStatus)
-  status!: SyncStatus;
+@Column({
+  type: "text",
+  default: SyncStatus.PENDING,
+})
+@IsEnum(SyncStatus)
+status!: SyncStatus;
 
   @Column({ type: "jsonb" })
   data!: Record<string, any>;

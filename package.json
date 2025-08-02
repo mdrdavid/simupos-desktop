@@ -23,7 +23,7 @@
   },
   "homepage": "https://github.com/mdrdavid/simupos-desktop#readme",
   "devDependencies": {
-    "electron": "37.2.5",
+    "electron": "^37.2.5",
     "electron-builder": "^26.0.12"
   },
   "build": {

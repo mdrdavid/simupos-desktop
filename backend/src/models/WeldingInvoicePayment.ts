@@ -31,12 +31,11 @@ export class WeldingInvoicePayment {
   @Column("decimal", { precision: 12, scale: 2 })
   amount!: number;
 
-  @Column({
-    type: "enum",
-    enum: PaymentMethod,
-    default: PaymentMethod.Cash,
-  })
-  method!: PaymentMethod;
+@Column({
+  type: "text",
+  default: PaymentMethod.Cash,
+})
+method!: PaymentMethod;
 
   @Column()
   date!: Date;

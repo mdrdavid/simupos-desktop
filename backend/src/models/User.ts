@@ -65,21 +65,19 @@ export class User {
   @IsOptional()
   pinHash?: string;
 
-  @Column({
-    type: "enum",
-    enum: UserRole,
-    default: UserRole.CASHIER,
-  })
-  @IsEnum(UserRole)
-  role!: UserRole;
+ @Column({
+  type: "text",
+  default: UserRole.CASHIER,
+})
+@IsEnum(UserRole)
+role!: UserRole;
 
-  @Column({
-    type: "enum",
-    enum: UserStatus,
-    default: UserStatus.ACTIVE,
-  })
-  @IsEnum(UserStatus)
-  status!: UserStatus;
+@Column({
+  type: "text",
+  default: UserStatus.ACTIVE,
+})
+@IsEnum(UserStatus)
+status!: UserStatus;
 
   @Column({ nullable: true })
   @IsOptional()
@@ -89,8 +87,9 @@ export class User {
   @IsOptional()
   address?: string;
 
-  @Column({ type: "jsonb", nullable: true })
-  preferences?: Record<string, any>;
+  @Column("simple-json", { nullable: true })
+preferences?: Record<string, any>;
+
 
   @Column({ type: "timestamp", nullable: true })
   lastLoginAt?: Date;

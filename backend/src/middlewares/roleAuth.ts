@@ -34,3 +34,15 @@ export const requireBranchAccess = (req: Request, res: Response, next: NextFunct
 
   next()
 }
+
+export const isAdmin = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.user) {
+    throw new ApiError(401, "Authentication required")
+  }
+
+  if (req.user.role !== "admin") {
+    throw new ApiError(403, "Insufficient permissions")
+  }
+
+  next()
+}

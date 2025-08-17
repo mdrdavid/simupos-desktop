@@ -642,3 +642,12 @@ export const weldingPaymentSchema = Joi.object({
   reference: Joi.string().allow("").optional(),
   notes: Joi.string().allow("").optional(),
 });
+
+export const vatSettingsSchema = Joi.object({
+  applyVAT: Joi.boolean().required(),
+  vatRate: Joi.number().min(0).max(100).when("applyVAT", {
+    is: true,
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(null),
+  }),
+});

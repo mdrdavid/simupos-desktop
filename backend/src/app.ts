@@ -31,6 +31,9 @@ import {
   agroProductRoutes,
   dashboardRoutes,
   transactionAnalysisRoutes,
+  cashRegisterRoutes,
+  vatRoutes,
+  adminRoutes,
 } from "./routes";
 
 const app = express();
@@ -82,7 +85,9 @@ app.use("/api/v1/welding/invoices", weldingInvoiceRoutes);
 app.use("/api/v1/sales", salesMetricsRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
 app.use("/api/v1/", transactionAnalysisRoutes);
-
+app.use("/api/v1/admin", adminRoutes);
+app.use("/api/v1/cash-register", cashRegisterRoutes);
+app.use("/api/v1/vat", vatRoutes);
 // Health check
 app.get("/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });

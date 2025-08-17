@@ -32,12 +32,14 @@ import {
   WeldingQuoteLineItem,
   WeldingInvoiceLineItem,
   WeldingInvoicePayment,
-  AgroProductVariant
+  AgroProductVariant,
+  CashRegisterLog,
+  CashRegisterSession,
 } from "../models";
 export const AppDataSource = new DataSource({
   type: "sqlite",
   database: "db/simpos.sqlite",
-//  synchronize: process.env.NODE_ENV !== 'production', // Only sync in development
+  //  synchronize: process.env.NODE_ENV !== 'production', // Only sync in development
   logging: true, // Set to true to see SQL queries
   entities: [
     User,
@@ -73,6 +75,8 @@ export const AppDataSource = new DataSource({
     WeldingInvoiceLineItem,
     WeldingInvoicePayment,
     AgroProductVariant,
+    CashRegisterLog,
+    CashRegisterSession,
   ],
   migrations: ["src/migrations/*.ts"],
   subscribers: [],

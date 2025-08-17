@@ -54,8 +54,7 @@ export default function AddStockPage() {
           currency: formData.currency,
           receivedDate: formData.receivedDate,
           supplierInfo: formData.supplierInfo,
-          //   type: formData.type,
-          //   notes: formData.notes,
+          branchId: currentBranchId
         },
         currentBranchId
       );

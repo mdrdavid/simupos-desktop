@@ -11,7 +11,12 @@ import {
 import { Branch } from "./Branch";
 import { AgroProductSaleItem } from "./AgroProductSaleItem";
 import { AgroCustomerDetails } from "./AgroCustomerDetails";
-
+export enum AgroPaymentMethod {
+  CASH = "cash",
+  MOBILE_MONEY = "mobile_money",
+  BANK_TRANSFER = "bank_transfer",
+  OTHER = "other",
+}
 @Entity()
 export class AgroSale {
   @PrimaryGeneratedColumn("uuid")
@@ -19,9 +24,6 @@ export class AgroSale {
 
   @Column()
   saleDate!: Date;
-
-  //   @Column('jsonb')
-  //   items!: AgroProductSaleItem[];
 
   @Column("decimal", { precision: 10, scale: 2 })
   totalAmount!: number;
@@ -47,15 +49,14 @@ export class AgroSale {
   @Column({ nullable: true })
   deliveryAddress?: string;
 
-  @Column("jsonb", { nullable: true })
+  @Column("simple-json", { nullable: true })
   customerDetails?: AgroCustomerDetails;
 
   @Column({
-    type: "enum",
-    enum: ["cash", "mobile_money", "bank_transfer", "other"],
+    type: "text",
     nullable: true,
   })
-  paymentMethod?: "cash" | "mobile_money" | "bank_transfer" | "other";
+  paymentMethod?: AgroPaymentMethod;
 
   @Column({ nullable: true })
   notes?: string;

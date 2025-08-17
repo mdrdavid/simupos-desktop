@@ -4,6 +4,7 @@ import { WeldingQuote, WeldingQuoteLineItem } from "../models";
 import { ApiError } from "../utils/ApiError";
 import { SyncService } from "./SyncService";
 import { SyncOperation } from "../models/SyncLog";
+import { QuoteStatus } from "../models/WeldingQuote";
 
 export class WeldingQuoteService {
   private quoteRepository: Repository<WeldingQuote>;
@@ -55,7 +56,7 @@ export class WeldingQuoteService {
         totalAmount,
         validUntil,
         notes,
-        status: "Draft",
+        status: QuoteStatus.DRAFT,
         branchId,
       });
       await queryRunner.manager.save(quote);
@@ -98,7 +99,7 @@ export class WeldingQuoteService {
       throw new ApiError(404, "Quote not found");
     }
 
-    quote.status = status;
+    quote.status = status as QuoteStatus;
     await this.quoteRepository.save(quote);
 
     await this.syncService.logChange(
@@ -112,168 +113,168 @@ export class WeldingQuoteService {
 
     return quote;
   }
-async updateQuote(
-  quoteId: string,
-  userId: string,
-  lineItems?: Array<{
-    description: string;
-    quantity: number;
-    unitPrice: number;
-    materialDetails?: { name: string; unit: string; isCustom: boolean };
-  }>,
-  notes?: string,
-  validUntil?: Date,
-  status?: string
-) {
-  const queryRunner = AppDataSource.createQueryRunner();
-  await queryRunner.connect();
-  await queryRunner.startTransaction();
+  async updateQuote(
+    quoteId: string,
+    userId: string,
+    lineItems?: Array<{
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      materialDetails?: { name: string; unit: string; isCustom: boolean };
+    }>,
+    notes?: string,
+    validUntil?: Date,
+    status?: string
+  ) {
+    const queryRunner = AppDataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-  try {
-    const quote = await this.quoteRepository.findOne({
-      where: { id: quoteId },
-      relations: ["lineItems"],
-    });
+    try {
+      const quote = await this.quoteRepository.findOne({
+        where: { id: quoteId },
+        relations: ["lineItems"],
+      });
 
-    if (!quote) {
-      throw new ApiError(404, "Quote not found");
-    }
+      if (!quote) {
+        throw new ApiError(404, "Quote not found");
+      }
 
-    // Update basic fields
-    if (notes !== undefined) quote.notes = notes;
-    if (validUntil !== undefined) quote.validUntil = validUntil;
-    if (status !== undefined) quote.status = status;
+      // Update basic fields
+      if (notes !== undefined) quote.notes = notes;
+      if (validUntil !== undefined) quote.validUntil = validUntil;
+      if (status !== undefined) quote.status = status as QuoteStatus;
 
-    // Only update line items if they are explicitly provided
-    if (lineItems !== undefined) {
-      // Remove existing line items
-      await this.lineItemRepository.delete({ quote: { id: quoteId } });
+      // Only update line items if they are explicitly provided
+      if (lineItems !== undefined) {
+        // Remove existing line items
+        await this.lineItemRepository.delete({ quote: { id: quoteId } });
 
-      // Create new line items
-      const lineItemEntities = lineItems.map((item) =>
-        this.lineItemRepository.create({
-          ...item,
-          total: item.quantity * item.unitPrice,
-          quote,
-        })
+        // Create new line items
+        const lineItemEntities = lineItems.map((item) =>
+          this.lineItemRepository.create({
+            ...item,
+            total: item.quantity * item.unitPrice,
+            quote,
+          })
+        );
+        await queryRunner.manager.save(lineItemEntities);
+
+        // Recalculate totals
+        const subTotal = lineItems.reduce(
+          (sum, item) => sum + item.quantity * item.unitPrice,
+          0
+        );
+        const taxRate = quote.taxRate ?? 0.18; // default if missing
+        const taxAmount = subTotal * taxRate;
+        const totalAmount = subTotal + taxAmount;
+
+        quote.subTotal = subTotal;
+        quote.taxAmount = taxAmount;
+        quote.totalAmount = totalAmount;
+      }
+
+      await queryRunner.manager.save(quote);
+      await queryRunner.commitTransaction();
+
+      await this.syncService.logChange(
+        "WeldingQuote",
+        quote.id,
+        SyncOperation.UPDATE,
+        quote,
+        userId,
+        quote.branchId
       );
-      await queryRunner.manager.save(lineItemEntities);
 
-      // Recalculate totals
-      const subTotal = lineItems.reduce(
-        (sum, item) => sum + item.quantity * item.unitPrice,
-        0
-      );
-      const taxRate = quote.taxRate ?? 0.18; // default if missing
-      const taxAmount = subTotal * taxRate;
-      const totalAmount = subTotal + taxAmount;
-
-      quote.subTotal = subTotal;
-      quote.taxAmount = taxAmount;
-      quote.totalAmount = totalAmount;
+      return quote;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-
-    await queryRunner.manager.save(quote);
-    await queryRunner.commitTransaction();
-
-    await this.syncService.logChange(
-      "WeldingQuote",
-      quote.id,
-      SyncOperation.UPDATE,
-      quote,
-      userId,
-      quote.branchId
-    );
-
-    return quote;
-  } catch (error) {
-    await queryRunner.rollbackTransaction();
-    throw error;
-  } finally {
-    await queryRunner.release();
   }
-}
-//   async updateQuote(
-//     quoteId: string,
-//     userId: string,
-//     lineItems?: Array<{
-//       description: string;
-//       quantity: number;
-//       unitPrice: number;
-//       materialDetails?: { name: string; unit: string; isCustom: boolean };
-//     }>,
-//     notes?: string,
-//     validUntil?: Date,
-//     status?: string
-//   ) {
-//     const queryRunner = AppDataSource.createQueryRunner();
-//     await queryRunner.connect();
-//     await queryRunner.startTransaction();
+  //   async updateQuote(
+  //     quoteId: string,
+  //     userId: string,
+  //     lineItems?: Array<{
+  //       description: string;
+  //       quantity: number;
+  //       unitPrice: number;
+  //       materialDetails?: { name: string; unit: string; isCustom: boolean };
+  //     }>,
+  //     notes?: string,
+  //     validUntil?: Date,
+  //     status?: string
+  //   ) {
+  //     const queryRunner = AppDataSource.createQueryRunner();
+  //     await queryRunner.connect();
+  //     await queryRunner.startTransaction();
 
-//     try {
-//       const quote = await this.quoteRepository.findOne({
-//         where: { id: quoteId },
-//         relations: ["lineItems"],
-//       });
+  //     try {
+  //       const quote = await this.quoteRepository.findOne({
+  //         where: { id: quoteId },
+  //         relations: ["lineItems"],
+  //       });
 
-//       if (!quote) {
-//         throw new ApiError(404, "Quote not found");
-//       }
+  //       if (!quote) {
+  //         throw new ApiError(404, "Quote not found");
+  //       }
 
-//       // Update basic fields
-//       if (notes !== undefined) quote.notes = notes;
-//       if (validUntil !== undefined) quote.validUntil = validUntil;
-//       if (status !== undefined) quote.status = status;
+  //       // Update basic fields
+  //       if (notes !== undefined) quote.notes = notes;
+  //       if (validUntil !== undefined) quote.validUntil = validUntil;
+  //       if (status !== undefined) quote.status = status;
 
-//       // Update line items if provided
-//       if (lineItems) {
-//         // Remove existing line items
-//         await this.lineItemRepository.delete({ quote: { id: quoteId } });
+  //       // Update line items if provided
+  //       if (lineItems) {
+  //         // Remove existing line items
+  //         await this.lineItemRepository.delete({ quote: { id: quoteId } });
 
-//         // Create new line items
-//         const lineItemEntities = lineItems.map((item) =>
-//           this.lineItemRepository.create({
-//             ...item,
-//             total: item.quantity * item.unitPrice,
-//             quote,
-//           })
-//         );
-//         await queryRunner.manager.save(lineItemEntities);
+  //         // Create new line items
+  //         const lineItemEntities = lineItems.map((item) =>
+  //           this.lineItemRepository.create({
+  //             ...item,
+  //             total: item.quantity * item.unitPrice,
+  //             quote,
+  //           })
+  //         );
+  //         await queryRunner.manager.save(lineItemEntities);
 
-//         // Recalculate totals
-//         const subTotal = lineItems.reduce(
-//           (sum, item) => sum + item.quantity * item.unitPrice,
-//           0
-//         );
-//         const taxRate = quote.taxRate ?? 0; // default if missing
-//         const taxAmount = subTotal * taxRate;
-//         const totalAmount = subTotal + taxAmount;
+  //         // Recalculate totals
+  //         const subTotal = lineItems.reduce(
+  //           (sum, item) => sum + item.quantity * item.unitPrice,
+  //           0
+  //         );
+  //         const taxRate = quote.taxRate ?? 0; // default if missing
+  //         const taxAmount = subTotal * taxRate;
+  //         const totalAmount = subTotal + taxAmount;
 
-//         quote.subTotal = subTotal;
-//         quote.taxAmount = taxAmount;
-//         quote.totalAmount = totalAmount;
-//       }
+  //         quote.subTotal = subTotal;
+  //         quote.taxAmount = taxAmount;
+  //         quote.totalAmount = totalAmount;
+  //       }
 
-//       await queryRunner.manager.save(quote);
-//       await queryRunner.commitTransaction();
+  //       await queryRunner.manager.save(quote);
+  //       await queryRunner.commitTransaction();
 
-//       await this.syncService.logChange(
-//         "WeldingQuote",
-//         quote.id,
-//         SyncOperation.UPDATE,
-//         quote,
-//         userId,
-//         quote.branchId
-//       );
+  //       await this.syncService.logChange(
+  //         "WeldingQuote",
+  //         quote.id,
+  //         SyncOperation.UPDATE,
+  //         quote,
+  //         userId,
+  //         quote.branchId
+  //       );
 
-//       return quote;
-//     } catch (error) {
-//       await queryRunner.rollbackTransaction();
-//       throw error;
-//     } finally {
-//       await queryRunner.release();
-//     }
-//   }
+  //       return quote;
+  //     } catch (error) {
+  //       await queryRunner.rollbackTransaction();
+  //       throw error;
+  //     } finally {
+  //       await queryRunner.release();
+  //     }
+  //   }
   async getQuoteById(quoteId: string) {
     return await this.quoteRepository.findOne({
       where: { id: quoteId, isDeleted: false },

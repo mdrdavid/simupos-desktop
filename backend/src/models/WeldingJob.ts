@@ -13,7 +13,16 @@ import { WeldingJobExpense } from "./WeldingJobExpense";
 import { WeldingJobImage } from "./WeldingJobImage";
 import { WeldingInvoice } from "./WeldingInvoice";
 import { WeldingQuote } from "./WeldingQuote";
-
+export enum WeldingJobStatus {
+  PENDING = "Pending",
+  QUOTED = "Quoted",
+  APPROVED = "Approved",
+  IN_PROGRESS = "In Progress",
+  AWAITING_MATERIALS = "Awaiting Materials",
+  READY_FOR_PAINTING = "Ready for Painting",
+  COMPLETED = "Completed",
+  DELIVERED = "Delivered",
+}
 @Entity("welding_jobs")
 export class WeldingJob {
   @PrimaryGeneratedColumn("uuid")
@@ -41,20 +50,10 @@ export class WeldingJob {
   requiredDeliveryDate!: Date;
 
   @Column({
-    type: "enum",
-    enum: [
-      "Pending",
-      "Quoted",
-      "Approved",
-      "In Progress",
-      "Awaiting Materials",
-      "Ready for Painting",
-      "Completed",
-      "Delivered",
-    ],
-    default: "Pending",
+    type: "text",
+    default: WeldingJobStatus.PENDING,
   })
-  status!: string;
+  status!: WeldingJobStatus;
 
   @Column({ nullable: true })
   activeQuoteId?: string;
@@ -63,7 +62,7 @@ export class WeldingJob {
   activeInvoiceId?: string;
 
   @Column("text", { array: true, nullable: true })
-    assignedArtisans?: string[];
+  assignedArtisans?: string[];
 
   @Column({ nullable: true, type: "boolean" })
   deliveryConfirmed?: boolean;
@@ -101,7 +100,7 @@ export class WeldingJob {
   @OneToMany(() => WeldingQuote, (quotes) => quotes.weldingJob)
   quotes!: WeldingQuote[];
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   lastSyncAt?: Date;
 
   @Column({ default: false })

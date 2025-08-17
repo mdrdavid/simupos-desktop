@@ -1,5 +1,6 @@
 import { Item } from "../models";
 import { FrontendItem } from "../types/item.types";
+import { ProductType } from "../models/Item";
 
 export class ItemTransformer {
   static toFrontend(item: Item): FrontendItem {
@@ -36,8 +37,8 @@ export class ItemTransformer {
       category: frontendItem.category,
       branchId: frontendItem.branchId,
       barcode: frontendItem.barcode,
-      isActive: frontendItem.isActive !== false, // default to true if not specified
-      productType: frontendItem.productType ?? "retail", // default to retail
+      isActive: frontendItem.isActive !== false,
+      productType: frontendItem.productType ?? ProductType.RETAIL, // Use enum here
       unit: frontendItem.unit,
       subUnit: frontendItem.subUnit,
       conversionFactor: frontendItem.conversionFactor,

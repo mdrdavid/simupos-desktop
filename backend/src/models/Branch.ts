@@ -61,7 +61,7 @@ export class Branch {
   @IsBoolean()
   isMain!: boolean;
 
-  @Column({ type: "jsonb", nullable: true })
+  @Column({ type: "simple-json", nullable: true })
   settings?: Record<string, any>;
 
   @ManyToOne(() => Business, (business) => business.branches, {
@@ -123,7 +123,7 @@ export class Branch {
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({  nullable: true })
   lastSyncAt?: Date;
 
   @Column({ default: false })

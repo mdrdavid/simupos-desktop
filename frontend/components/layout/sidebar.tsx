@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,8 @@ import {
   LogOut,
   ChevronDown,
   ChevronRight,
+  // Wrench,
+  Leaf,
 } from "lucide-react";
 import {
   Collapsible,
@@ -31,12 +33,13 @@ import {
 } from "@/components/ui/collapsible";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
+import { useBusiness } from "@/context/BusinessContext";
 
 interface SidebarProps {
   className?: string;
 }
 
-const navigation = [
+const baseNavigation = [
   {
     name: "Dashboard",
     href: "/dashboard",
@@ -48,7 +51,6 @@ const navigation = [
     children: [
       { name: "Point of Sale", href: "/sales/pos" },
       { name: "Transactions", href: "/sales/transactions" },
-      // { name: "Agro Sales", href: "/sales/agro" },
     ],
   },
   {
@@ -57,20 +59,25 @@ const navigation = [
     children: [
       { name: "Products", href: "/inventory" },
       { name: "Stock Management", href: "/inventory/stock" },
-      // { name: "Agro Products", href: "/inventory/agro-products" },
       { name: "Categories", href: "/inventory/categories" },
     ],
   },
   {
     name: "Agro Zone",
-    icon: Package,
+    icon: Leaf,
     children: [
       { name: "Products", href: "/agro/inventory" },
       { name: "New Product", href: "/agro/add" },
       { name: "New Sale", href: "/agro/sales/new" },
-      // { name: "Categories", href: "/inventory/categories" },
     ],
+    requiredBusinessType: "agro",
   },
+  // {
+  //   name: "Professional Hub",
+  //   icon: Wrench,
+  //   href: "/professional-hub",
+  //   requiredBusinessType: "workshop",
+  // },
   {
     name: "Customers",
     href: "/crm",
@@ -108,15 +115,6 @@ const navigation = [
       { name: "Admin", href: "/cash-register/admin" },
     ],
   },
-  //  {
-  //   name: "Business",
-  //   icon: Building2,
-  //   children: [
-  //     { name: "Business Profile", href: "/business/profile" },
-  //     { name: "Branches", href: "/business/branches" },
-  //     { name: "Subscription", href: "/business/subscription" },
-  //   ],
-  // },
   {
     name: "Users",
     href: "/users",
@@ -127,7 +125,6 @@ const navigation = [
     href: "/suppliers",
     icon: UserCheck,
   },
-
   {
     name: "Settings",
     icon: Settings,
@@ -142,7 +139,53 @@ const navigation = [
 function SidebarContent({ className }: SidebarProps) {
   const pathname = usePathname();
   const { logout } = useAuth();
+  const { currentBusiness } = useBusiness();
   const [openItems, setOpenItems] = useState<string[]>([]);
+
+  const businessType = currentBusiness?.businessType;
+
+  const navigation = useMemo(() => {
+    if (!businessType) return baseNavigation;
+
+    let filteredNav = baseNavigation.filter((item) => {
+      if (item.requiredBusinessType) {
+        return item.requiredBusinessType === businessType;
+      }
+      return true;
+    });
+
+    if (businessType === "agro") {
+      filteredNav = filteredNav.filter(
+        (item) => item.name !== "Customers" && item.name !== "Credit Management"
+      );
+      const sales = filteredNav.find((item) => item.name === "Sales");
+      if (sales && sales.children) {
+        sales.children = sales.children.filter(
+          (child) => child.name === "Transactions"
+        );
+      }
+    } else if (businessType === "workshop") {
+      filteredNav = filteredNav.filter(
+        (item) =>
+          item.name !== "Agro Zone" &&
+          item.name !== "Sales" &&
+          item.name !== "Inventory"
+      );
+    } else if (businessType === "pharmacy") {
+      filteredNav = filteredNav.filter(
+        (item) =>
+          item.name !== "Credit Management" && item.name !== "Agro Zone"
+      );
+    } else if (businessType === "salon") {
+      filteredNav = filteredNav.filter(
+        (item) => item.name !== "Inventory" && item.name !== "Agro Zone"
+      );
+    } else {
+      filteredNav = filteredNav.filter((item) => item.name !== "Agro Zone");
+    }
+
+    return filteredNav;
+  }, [businessType]);
 
   const toggleItem = (name: string) => {
     setOpenItems((prev) =>
@@ -154,7 +197,6 @@ function SidebarContent({ className }: SidebarProps) {
 
   return (
     <div className={cn("flex h-full flex-col bg-white border-r", className)}>
-      {/* Logo */}
       <div className="flex h-16 items-center border-b px-6">
         <Link href="/dashboard" className="flex items-center space-x-2">
           <div className="rounded-lg bg-primary flex items-center justify-center">
@@ -168,7 +210,6 @@ function SidebarContent({ className }: SidebarProps) {
           </div>
         </Link>
       </div>
-      {/* Navigation */}
       <ScrollArea className="flex-1 px-3 py-4">
         <nav className="space-y-1">
           {navigation.map((item) => {
@@ -245,13 +286,11 @@ function SidebarContent({ className }: SidebarProps) {
           })}
         </nav>
       </ScrollArea>
-
-      {/* User section */}
       <div className="border-t p-4">
         <Button
           variant="ghost"
           className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
-          onClick={logout} // Call logout function on click
+          onClick={logout}
         >
           <LogOut className="mr-3 h-4 w-4" />
           Sign Out
@@ -264,12 +303,9 @@ function SidebarContent({ className }: SidebarProps) {
 export function Sidebar({ className }: SidebarProps) {
   return (
     <>
-      {/* Desktop Sidebar */}
       <div className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0">
         <SidebarContent className={className} />
       </div>
-
-      {/* Mobile Sidebar */}
       <Sheet>
         <SheetTrigger asChild>
           <Button variant="ghost" size="icon" className="lg:hidden">

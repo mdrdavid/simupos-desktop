@@ -1,10 +1,24 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  OneToMany,
+} from "typeorm";
 import { Branch } from "./Branch";
 import { WeldingQuoteLineItem } from "./WeldingQuoteLineItem";
 import { WeldingJob } from "./WeldingJob";
 import { WeldingInvoice } from "./WeldingInvoice";
-
-@Entity('welding_quotes')
+export enum QuoteStatus {
+  DRAFT = "Draft",
+  SENT = "Sent",
+  ACCEPTED = "Accepted",
+  DECLINED = "Declined",
+  INVOICED = "Invoiced",
+}
+@Entity("welding_quotes")
 export class WeldingQuote {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
@@ -22,7 +36,7 @@ export class WeldingQuote {
     location?: string;
   };
 
-  @OneToMany(() => WeldingQuoteLineItem, item => item.quote)
+  @OneToMany(() => WeldingQuoteLineItem, (item) => item.quote)
   lineItems!: WeldingQuoteLineItem[];
 
   @Column("decimal", { precision: 12, scale: 2 })
@@ -44,12 +58,11 @@ export class WeldingQuote {
   notes?: string;
 
   @Column({
-    type: "enum",
-    enum: ["Draft", "Sent", "Accepted", "Declined", "Invoiced"],
-    default: "Draft"
+    type: "text",
+    default: QuoteStatus.DRAFT,
   })
-  status!: string;
-
+  status!: QuoteStatus;
+  
   @CreateDateColumn()
   createdAt!: Date;
 
@@ -59,16 +72,16 @@ export class WeldingQuote {
   @Column()
   branchId!: string;
 
-  @ManyToOne(() => Branch, branch => branch.weldingQuotes)
+  @ManyToOne(() => Branch, (branch) => branch.weldingQuotes)
   branch!: Branch;
 
-  @OneToMany(() => WeldingInvoice, invoice => invoice.quote)
+  @OneToMany(() => WeldingInvoice, (invoice) => invoice.quote)
   invoices!: WeldingInvoice[];
 
-  @ManyToOne(() => WeldingJob, job => job.quotes)
+  @ManyToOne(() => WeldingJob, (job) => job.quotes)
   weldingJob!: WeldingJob;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   lastSyncAt?: Date;
 
   @Column({ default: false })

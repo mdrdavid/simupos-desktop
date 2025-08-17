@@ -9,7 +9,11 @@ import {
 } from "typeorm";
 import { Branch } from "./Branch";
 import { IsOptional } from "class-validator";
-
+export enum CustomerType {
+  REGULAR = "Regular",
+  VIP = "VIP",
+  WHOLESALE = "Wholesale",
+}
 @Entity("customers")
 export class Customer {
   @PrimaryGeneratedColumn("uuid")
@@ -34,12 +38,10 @@ export class Customer {
   birthday?: Date;
 
   @Column({
-    type: "enum",
-    enum: ["Regular", "VIP", "Wholesale"],
-    default: "Regular",
+    type: "text",
+    default: CustomerType.REGULAR,
   })
-  customerType!: "Regular" | "VIP" | "Wholesale";
-
+  customerType!: CustomerType;
   @Column({ type: "text", nullable: true })
   @IsOptional()
   notes?: string;
@@ -47,7 +49,7 @@ export class Customer {
   @Column({ type: "decimal", precision: 12, scale: 2, default: 0 })
   totalSpend!: number;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ nullable: true })
   @IsOptional()
   lastVisit?: Date;
 

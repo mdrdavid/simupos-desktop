@@ -21,3 +21,6 @@ export * from "./weldingJobRoutes";
 export * from "./weldingMaterialStockRoutes";
 export * from "./weldingQuoteRoutes";
 export * from "./transactionAnalysisRoutes";
+export * from "./vatRoutes";
+export * from "./cashRegisterRoutes";
+export * from "./adminRoutes";

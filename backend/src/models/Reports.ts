@@ -27,17 +27,16 @@ export class Report {
   @Column()
   name!: string;
 
-  @Column({
-    type: "enum",
-    enum: ReportType,
-    default: ReportType.SALES,
-  })
-  type!: ReportType;
+ @Column({
+  type: "text",
+  default: ReportType.SALES,
+})
+type!: ReportType;
 
-  @Column("jsonb")
+   @Column("simple-json")
   filters!: Record<string, any>;
 
-  @Column("jsonb")
+  @Column("simple-json")
   data!: Record<string, any>;
 
   @ManyToOne(() => Business)

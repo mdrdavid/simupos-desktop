@@ -33,11 +33,10 @@ export class Subscription {
   @Column("uuid")
   planId!: string;
   @Column({
-    type: "enum",
-    enum: SubscriptionStatus,
+    type: "text",
     default: SubscriptionStatus.ACTIVE,
+    name: "subscriptionStatus",
   })
-  @IsEnum(SubscriptionStatus)
   status!: SubscriptionStatus;
 
   @Column("decimal", { precision: 10, scale: 2 })
@@ -57,7 +56,8 @@ export class Subscription {
   @Column({ default: false })
   autoRenew!: boolean;
 
-  @Column({ type: "jsonb", nullable: true })
+  data!: Record<string, any>;
+  @Column({ type: "simple-json", nullable: true })
   features?: Record<string, any>;
 
   @ManyToOne(() => User, { onDelete: "CASCADE" })
@@ -73,7 +73,7 @@ export class Subscription {
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   lastSyncAt?: Date;
 
   @Column({ default: false })
@@ -85,9 +85,9 @@ export class Subscription {
   @Column({ nullable: true })
   trialEndDate?: Date;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   cancelledAt?: Date | null;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   expiredAt?: Date | null;
 }

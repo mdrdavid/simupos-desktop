@@ -28,13 +28,11 @@ export enum UserRole {
   SALES_REP = "sales_rep",
 }
 
-
 export enum UserStatus {
   ACTIVE = "active",
   INACTIVE = "inactive",
   SUSPENDED = "suspended",
 }
-
 @Entity("users")
 @Index(["email"], { unique: true })
 @Index(["phone"], { unique: true })
@@ -65,21 +63,19 @@ export class User {
   @IsOptional()
   pinHash?: string;
 
-  @Column({
-    type: "enum",
-    enum: UserRole,
-    default: UserRole.CASHIER,
-  })
-  @IsEnum(UserRole)
-  role!: UserRole;
+ @Column({
+  type: "text",
+  default: UserRole.CASHIER,
+})
+@IsEnum(UserRole)
+role!: UserRole;
 
-  @Column({
-    type: "enum",
-    enum: UserStatus,
-    default: UserStatus.ACTIVE,
-  })
-  @IsEnum(UserStatus)
-  status!: UserStatus;
+@Column({
+  type: "text",
+  default: UserStatus.ACTIVE,
+})
+@IsEnum(UserStatus)
+status!: UserStatus;
 
   @Column({ nullable: true })
   @IsOptional()
@@ -89,16 +85,17 @@ export class User {
   @IsOptional()
   address?: string;
 
-  @Column({ type: "jsonb", nullable: true })
-  preferences?: Record<string, any>;
+  @Column("simple-json", { nullable: true })
+preferences?: Record<string, any>;
 
-  @Column({ type: "timestamp", nullable: true })
+
+  @Column({ type: "datetime", nullable: true })
   lastLoginAt?: Date;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   emailVerifiedAt?: Date;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   phoneVerifiedAt?: Date;
 
   @OneToMany(() => Business, (business) => business.owner)
@@ -126,7 +123,7 @@ export class User {
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   lastSyncAt?: Date;
 
   @OneToMany(() => Subscription, (subscription) => subscription.user)
@@ -138,7 +135,7 @@ export class User {
   @Column({ nullable: true })
   otpCode?: string;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   otpExpiresAt?: Date | undefined;
 
   @Column({ default: false })
@@ -146,15 +143,8 @@ export class User {
   @Column({ default: false })
   isActive!: boolean;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   lastLogoutAt?: Date | undefined;
-
-  // createdBy as a JSONB column
-  // @Column({ type: "jsonb", nullable: true })
-  // createdBy?: {
-  //   id: string;
-  //   name: string;
-  // };
 
   @ManyToOne(() => User, (user) => user.createdUsers, { nullable: true })
   @JoinColumn({ name: "createdById" })

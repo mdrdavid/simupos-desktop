@@ -52,7 +52,7 @@ export class Business {
   @IsOptional()
   logo?: string;
 
-  @Column({ type: "jsonb", nullable: true })
+  @Column({ type: "simple-json", nullable: true })
   settings?: Record<string, any>;
 
   @Column({ nullable: true })

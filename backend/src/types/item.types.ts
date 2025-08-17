@@ -1,3 +1,5 @@
+import { ProductType } from "../models/Item";
+
 export type FrontendItem = {
   id: string;
   name: string;
@@ -11,7 +13,7 @@ export type FrontendItem = {
   profitMargin?: number;
   barcode?: string;
   isActive: boolean;
-  productType: "retail" | "service" | "processed" | "raw_material" | "combo";
+  productType: ProductType;
   unit?: string;
   subUnit?: string;
   conversionFactor?: number;

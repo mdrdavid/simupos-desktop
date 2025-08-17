@@ -67,18 +67,15 @@ export class Sale {
   @Column("decimal", { precision: 10, scale: 2, default: 0 })
   @IsNumber()
   change!: number;
-
   @Column({
-    type: "enum",
-    enum: PaymentMethod,
+    type: "text",
     default: PaymentMethod.CASH,
   })
   @IsEnum(PaymentMethod)
   paymentMethod!: PaymentMethod;
 
   @Column({
-    type: "enum",
-    enum: SaleStatus,
+    type: "text",
     default: SaleStatus.COMPLETED,
   })
   @IsEnum(SaleStatus)
@@ -119,7 +116,7 @@ export class Sale {
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   lastSyncAt?: Date;
 
   @Column({ default: false })

@@ -35,12 +35,11 @@ export class CreditPayment {
   @Column("date")
   paymentDate!: Date;
 
-  @Column({
-    type: "enum",
-    enum: ["cash", "mtn_momo", "airtel_money", "bank_transfer", "other"],
-    default: "cash",
-  })
-  paymentMethod!: PaymentMethod;
+@Column({
+  type: "text",
+  default: "cash",
+})
+paymentMethod!: PaymentMethod;
 
   @Column({ nullable: true })
   notes?: string;

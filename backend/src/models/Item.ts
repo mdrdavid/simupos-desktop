@@ -13,6 +13,13 @@ import { IsNotEmpty, IsOptional, IsNumber, Min } from "class-validator";
 import { Branch } from "./Branch";
 import { SaleItem } from "./SaleItem";
 import { StockMovement } from "./StockMovement";
+export enum ProductType {
+  RETAIL = "retail",
+  SERVICE = "service",
+  PROCESSED = "processed",
+  RAW_MATERIAL = "raw_material",
+  COMBO = "combo",
+}
 @Entity("items")
 @Index(["name", "branchId"])
 @Index(["barcode", "branchId"], { unique: true })
@@ -62,7 +69,6 @@ export class Item {
   @IsNumber()
   costPrice?: number;
 
-
   @Column("uuid")
   branchId!: string;
 
@@ -86,11 +92,10 @@ export class Item {
   isActive!: boolean;
 
   @Column({
-    type: "enum",
-    enum: ["retail", "service", "processed", "raw_material", "combo"],
-    default: "retail",
+    type: "text",
+    default: ProductType.RETAIL,
   })
-  productType!: "retail" | "service" | "processed" | "raw_material" | "combo";
+  productType!: ProductType;
 
   @Column({ nullable: true })
   @IsOptional()
@@ -110,10 +115,10 @@ export class Item {
   })
   conversionFactor?: number;
 
-  @Column("jsonb", { nullable: true })
+  @Column("simple-json", { nullable: true })
   rawMaterials?: { itemId: string; quantityNeeded: number }[];
 
-  @Column({ type: "jsonb", nullable: true })
+  @Column({ type: "simple-json", nullable: true })
   metadata?: Record<string, any>;
   // Relations
   @ManyToOne(() => Branch, (branch) => branch.items, {
@@ -146,7 +151,7 @@ export class Item {
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   lastSyncAt?: Date;
   // Soft delete
   @Column({ default: false })

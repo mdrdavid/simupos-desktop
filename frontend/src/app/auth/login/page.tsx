@@ -20,6 +20,32 @@ export default function LoginScreen() {
 
   const { login } = useAuth();
 
+  const getDashboardUrl = (businessType: string) => {
+    switch (businessType) {
+      case "restaurant":
+        return "/restaurant/dashboard";
+      case "clinic":
+        return "/clinic/dashboard";
+      case "workshop":
+        return "/professional-hub";
+      case "agro":
+        return "/dashboard";
+      // return "/agro/dashboard";
+      case "salon":
+        return "/dashboard/salon";
+      case "wholesale":
+      case "supermarket":
+      case "hardware":
+      case "pharmacy":
+      case "dept_store":
+      case "bar":
+      case "retail":
+        return "/dashboard";
+      default:
+        return "/dashboard";
+    }
+  };
+
   const handleLogin = async () => {
     if (!phoneNumber || !pin) {
       toast({
@@ -41,14 +67,23 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     try {
-      const success = await login({ phone: phoneNumber, pin });
+      const result = await login({ phone: phoneNumber, pin });
 
-      if (success) {
+      if (result.success) {
         toast({
           title: "Success",
           description: "Login successful",
         });
-        router.push("/dashboard"); // Navigate to dashboard after successful login
+
+        if (result.businessData && result.businessData.businessType) {
+          const dashboardUrl = getDashboardUrl(
+            result.businessData.businessType
+          );
+          router.push(dashboardUrl);
+        } else {
+          // Fallback if businessType is not available
+          router.push("/dashboard");
+        }
       } else {
         toast({
           title: "Error",

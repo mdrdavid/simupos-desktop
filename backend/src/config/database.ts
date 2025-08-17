@@ -32,18 +32,15 @@ import {
   WeldingQuoteLineItem,
   WeldingInvoiceLineItem,
   WeldingInvoicePayment,
-  AgroProductVariant
+  AgroProductVariant,
+  CashRegisterLog,
+  CashRegisterSession,
 } from "../models";
-const sslCert = (require("https").globalAgent.options.ca =
-  require("ssl-root-cas").create());
-require("dotenv").config();
-console.log("Database URL:", process.env.DATABASE_URL);
 export const AppDataSource = new DataSource({
-  type: "postgres",
-  url: process.env.DATABASE_URL,
-  schema: process.env.DB_SCHEMA || "public",
-  synchronize: process.env.NODE_ENV === "development",
-  logging: process.env.NODE_ENV === "development",
+  type: "sqlite",
+  database: "db/simpos.sqlite",
+  //  synchronize: process.env.NODE_ENV !== 'production', // Only sync in development
+  logging: true, // Set to true to see SQL queries
   entities: [
     User,
     Branch,
@@ -78,11 +75,9 @@ export const AppDataSource = new DataSource({
     WeldingInvoiceLineItem,
     WeldingInvoicePayment,
     AgroProductVariant,
+    CashRegisterLog,
+    CashRegisterSession,
   ],
   migrations: ["src/migrations/*.ts"],
   subscribers: [],
-  // ssl: {
-  //   ca: sslCert,
-  //   rejectUnauthorized: false,
-  // },
 });

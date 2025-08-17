@@ -11,7 +11,7 @@ export enum SyncOperation {
   CREATE = "create",
   UPDATE = "update",
   DELETE = "delete",
-  PERMANENT_DELETE = "permanet_delete"
+  PERMANENT_DELETE = "permanet_delete",
 }
 
 export enum SyncStatus {
@@ -36,24 +36,22 @@ export class SyncLog {
   entityId!: string;
 
   @Column({
-    type: "enum",
-    enum: SyncOperation,
+    type: "text",
   })
   @IsEnum(SyncOperation)
   operation!: SyncOperation;
 
   @Column({
-    type: "enum",
-    enum: SyncStatus,
+    type: "text",
     default: SyncStatus.PENDING,
   })
   @IsEnum(SyncStatus)
   status!: SyncStatus;
 
-  @Column({ type: "jsonb" })
+  @Column({ type: "simple-json" })
   data!: Record<string, any>;
 
-  @Column({ type: "jsonb", nullable: true })
+  @Column({ type: "simple-json", nullable: true })
   error?: Record<string, any>;
 
   @Column("uuid")
@@ -65,6 +63,6 @@ export class SyncLog {
   @CreateDateColumn()
   createdAt!: Date;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "datetime", nullable: true })
   syncedAt?: Date;
 }

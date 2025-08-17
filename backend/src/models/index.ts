@@ -1,4 +1,6 @@
 import { AgroProductVariant } from "./AgroProductVariant";
+import { CashRegisterSession } from "./CashRegisterSession";
+import { CashRegisterLog } from "./CashRegisterLog";
 import { WeldingInvoicePayment } from "./WeldingInvoicePayment";
 import { WeldingInvoiceLineItem } from "./WeldingInvoiceLineItem";
 import { WeldingQuoteLineItem } from "./WeldingQuoteLineItem";
@@ -64,5 +66,7 @@ export {
   WeldingQuoteLineItem,
   WeldingInvoiceLineItem,
   WeldingInvoicePayment,
+  CashRegisterLog,
+  CashRegisterSession,
   AgroProductVariant,
 };

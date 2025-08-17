@@ -6,7 +6,11 @@ import {
   UpdateDateColumn,
 } from "typeorm";
 import { IsNumber, Min, IsBoolean, IsArray } from "class-validator";
-
+export enum DurationUnit {
+  DAYS = "days",
+  MONTHS = "months",
+  YEARS = "years"
+}
 @Entity("subscription_plans")
 export class SubscriptionPlan {
   @PrimaryGeneratedColumn("uuid")
@@ -32,7 +36,7 @@ export class SubscriptionPlan {
   @Column("int")
   maxTransactions!: number; // 0 = unlimited
 
-  @Column("jsonb")
+  @Column("simple-json")
   @IsArray()
   features!: string[];
 
@@ -56,10 +60,9 @@ export class SubscriptionPlan {
   @Column({ default: false })
   isTrial!: boolean;
 
-   @Column({ 
-    type: "enum", 
-    enum: ["days", "months", "years"],
-    default: "months"
+   @Column({
+    type: "text",
+    default: DurationUnit.MONTHS,
   })
-  durationUnit!: "days" | "months" | "years";
+  durationUnit!: DurationUnit;
 }

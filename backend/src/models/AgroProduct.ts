@@ -71,7 +71,7 @@ export class AgroProduct {
   @ManyToOne(() => Branch, (branch) => branch.agroProducts)
   branch!: Branch;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ nullable: true })
   lastSyncAt?: Date;
   // Soft delete
   @Column({ default: false })

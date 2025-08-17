@@ -1,7 +1,5 @@
-import { redirect } from "next/navigation"
+import RedirectHandler from "@/components/auth/RedirectHandler";
 
 export default function HomePage() {
-  // Redirect to dashboard for now
-  // redirect("/dashboard")
-  redirect("/landing")
+  return <RedirectHandler />;
 }

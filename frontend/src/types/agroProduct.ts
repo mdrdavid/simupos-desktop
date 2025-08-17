@@ -29,6 +29,7 @@ export interface StockShipment {
   quantity: number;
   receivedDate: string;
   currency: string;
+  branchId: string;
   supplierInfo?: string;
   type?: string;
   productId?: string;

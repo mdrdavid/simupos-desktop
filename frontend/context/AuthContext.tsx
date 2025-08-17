@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import {
@@ -56,12 +57,13 @@ interface AuthContextType {
     phone: string;
     pin: string;
     password: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }) => Promise<{ success: boolean; message?: string }>;
   login: (
     credentials:
       | { phone: string; pin: string }
       | { email: string; password: string }
-  ) => Promise<boolean>;
+  ) => Promise<{ success: boolean; businessData?: any }>;
   verifyOTP: (phone: string, otp: string) => Promise<boolean>;
   resendOTP: (phone: string) => Promise<boolean>;
   setupPIN: (userId: string, pin: string) => Promise<boolean>;
@@ -231,7 +233,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     credentials:
       | { phone: string; pin: string }
       | { email: string; password: string }
-  ) => {
+  ): Promise<{ success: boolean; businessData?: any }> => {
     try {
       setIsLoading(true);
       setAuthError(null);
@@ -282,7 +284,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           description: "You have been logged in successfully",
         });
 
-        return true;
+        return { success: true, businessData };
       } else {
         setAuthError(response.message || "Login failed");
         toast({
@@ -290,7 +292,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           description: response.message || "Invalid credentials",
           variant: "destructive",
         });
-        return false;
+        return { success: false };
       }
     } catch (error) {
       console.error("Login error:", error);
@@ -300,7 +302,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         description: "Failed to login. Please try again.",
         variant: "destructive",
       });
-      return false;
+      return { success: false };
     } finally {
       setIsLoading(false);
     }

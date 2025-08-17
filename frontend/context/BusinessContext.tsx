@@ -69,83 +69,38 @@ export const BusinessProvider = ({ children }: BusinessProviderProps) => {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // const { currentBusinessId, businessData, getAuthHeaders } = useAuth();
-  // Load businesses on mount
-
-  // useEffect(() => {
-  //   const loadBusinesses = async () => {
-  //     try {
-  //       setLoading(true);
-
-  //       // First check if we have stored business data
-  //       const storedBusiness = businessData;
-  //       const storedBusinessId = currentBusinessId;
-
-  //       if (storedBusiness && storedBusinessId) {
-  //         const parsedBusiness = JSON.parse(storedBusiness);
-  //         setCurrentBusiness(parsedBusiness);
-  //       }
-
-  //       // Then load fresh data from API
-  //       const data = await httpClient("/businesses");
-  //       setBusinesses(data.businesses);
-
-  //       // If we didn't have stored business, use the first one
-  //       if (!storedBusinessId && data.businesses.length > 0) {
-  //         setCurrentBusiness(data.businesses[0]);
-  //         localStorage.setItem(
-  //           "currentBusinessId",
-  //           data.businesses[0].id
-  //         );
-  //         localStorage.setItem(
-  //           "businessData",
-  //           JSON.stringify(data.businesses[0])
-  //         );
-  //       }
-  //     } catch (err) {
-  //       setError(
-  //         err instanceof Error ? err.message : "Failed to load businesses"
-  //       );
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   };
-
-  //   loadBusinesses();
-  // }, [businessData, currentBusinessId]);
   const { currentBusinessId, businessData, getAuthHeaders, isAuthenticated } = useAuth();
 
   useEffect(() => {
     const loadBusinesses = async () => {
-      try {
-        // Only load businesses if user is authenticated
-        if (!isAuthenticated) {
-          setLoading(false);
-          return;
-        }
+      if (!isAuthenticated) {
+        setLoading(false);
+        return;
+      }
 
+      try {
         setLoading(true);
         
-        // Rest of your existing loadBusinesses logic...
         const storedBusiness = businessData;
         const storedBusinessId = currentBusinessId;
 
         if (storedBusiness && storedBusinessId) {
-          const parsedBusiness = JSON.parse(storedBusiness);
-          setCurrentBusiness(parsedBusiness);
+          setCurrentBusiness(storedBusiness);
         }
 
-        // Add auth headers to the request
         const headers = await getAuthHeaders();
         const data = await httpClient("/businesses", { headers });
 
-        setBusinesses(data.businesses);
+        if (data && data.businesses) {
+            setBusinesses(data.businesses);
 
-        if (!storedBusinessId && data.businesses.length > 0) {
-          setCurrentBusiness(data.businesses[0]);
-          localStorage.setItem("currentBusinessId", data.businesses[0].id);
-          localStorage.setItem("businessData", JSON.stringify(data.businesses[0]));
+            if (!storedBusinessId && data.businesses.length > 0) {
+                setCurrentBusiness(data.businesses[0]);
+                localStorage.setItem("currentBusinessId", data.businesses[0].id);
+                localStorage.setItem("businessData", JSON.stringify(data.businesses[0]));
+            }
         }
+
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load businesses");
       } finally {
@@ -154,7 +109,7 @@ export const BusinessProvider = ({ children }: BusinessProviderProps) => {
     };
 
     loadBusinesses();
-  }, [businessData, currentBusinessId, isAuthenticated]);
+  }, [isAuthenticated, currentBusinessId, businessData, getAuthHeaders]);
   const selectBusiness = async (businessId: string) => {
     try {
       setLoading(true);

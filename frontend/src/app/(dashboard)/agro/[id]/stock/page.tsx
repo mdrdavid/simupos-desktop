@@ -1,10 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useAgroProduct } from "@/context/AgroProductContext";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, PackagePlus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import {
   Table,
@@ -16,32 +17,71 @@ import {
 } from "@/components/ui/table";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useEffect, useState } from "react";
+import { AgroProduct } from "@/src/types/agroProduct";
+import { capitalizeWords } from "@/src/utils";
 
 export default function ProductStockPage() {
   const router = useRouter();
   const { id } = useParams();
   const { toast } = useToast();
-  const { agroProducts, updateProductStock } = useAgroProduct();
+  const { agroProducts, updateProductStock, fetchProductDetails } =
+    useAgroProduct();
+  const [product, setProduct] = useState<AgroProduct | null>(null);
+  useEffect(() => {
+    const getProduct = async () => {
+      if (id) {
+        const existingProduct = agroProducts.find((p) => p.id === id);
+        if (existingProduct && existingProduct.variants) {
+          setProduct(existingProduct);
+        } else {
+          try {
+            const fetchedProduct = await fetchProductDetails(id as string);
+            setProduct(fetchedProduct);
+          } catch (error) {
+            toast({
+              title: "Error",
+              description: "Failed to fetch product details.",
+              variant: "destructive",
+            });
+          }
+        }
+      }
+    };
+    getProduct();
+  }, [id, agroProducts, fetchProductDetails, toast]);
 
-  const product = agroProducts.find((p) => p.id === id);
   const stockMovements = product?.stockShipments || [];
+  const variants = product?.variants || [];
 
-  const handleStockAdjustment = async (quantityChange: number) => {
+  const handleStockAdjustment = async (data: {
+    quantity: number;
+    costPrice: number;
+    currency: string;
+    receivedDate: string;
+    supplierInfo: string;
+    type: string;
+    notes: string;
+  }) => {
     try {
-      await updateProductStock(id as string, quantityChange);
+      await updateProductStock(
+        id as string,
+        data.quantity, // quantityChange
+        data.notes // reason
+      );
       toast({
-        title: "Stock updated",
-        description: `Stock level adjusted by ${quantityChange > 0 ? "+" : ""}${quantityChange}`,
+        title: "Stock added successfully",
+        description: `${data.quantity} items added to stock`,
       });
+      router.push(`/agro/${id}/stock`);
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to update stock",
+        description: "Failed to add stock",
         variant: "destructive",
       });
     }
   };
-
   return (
     <div className="container mx-auto p-4">
       <div className="flex items-center justify-between mb-6">
@@ -54,7 +94,7 @@ export default function ProductStockPage() {
             Back to Inventory
           </Link>
           <h1 className="text-2xl font-bold">
-            Stock Management: {product?.name}
+            Stock Management: {capitalizeWords(product?.name)}
           </h1>
         </div>
         <Link href={`/agro/${id}/stock/add`}>
@@ -71,7 +111,8 @@ export default function ProductStockPage() {
             Current Stock
           </h3>
           <p className="text-2xl font-bold">
-            {product?.totalStockQuantity || 0} {product?.unitOfMeasure}
+            {Math.floor(product?.totalStockQuantity || 0)}{" "}
+            {product?.unitOfMeasure}
           </p>
         </div>
 
@@ -80,7 +121,9 @@ export default function ProductStockPage() {
             Average Cost
           </h3>
           <p className="text-2xl font-bold">
-            {product?.currentAverageCostPrice?.toLocaleString() || 0}{" "}
+            {(product?.currentAverageCostPrice || 0).toLocaleString("en-US", {
+              maximumFractionDigits: 0,
+            })}
             {product?.baseCurrency}
           </p>
         </div>
@@ -95,21 +138,117 @@ export default function ProductStockPage() {
         </div>
       </div>
 
-      <div className="space-y-4">
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => handleStockAdjustment(1)}>
-            +1 {product?.unitOfMeasure}
-          </Button>
-          <Button variant="outline" onClick={() => handleStockAdjustment(-1)}>
-            -1 {product?.unitOfMeasure}
-          </Button>
-          <Button variant="outline" onClick={() => handleStockAdjustment(5)}>
-            +5 {product?.unitOfMeasure}
-          </Button>
-          <Button variant="outline" onClick={() => handleStockAdjustment(-5)}>
-            -5 {product?.unitOfMeasure}
-          </Button>
+      {product?.hasVariants && (
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold mb-2">Product Variants</h2>
+          <div className="border rounded-lg">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Variant Name</TableHead>
+                  <TableHead>Stock</TableHead>
+                  <TableHead>Unit</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {variants.map((variant: any) => (
+                  <TableRow key={variant.id}>
+                    <TableCell>{variant.name}</TableCell>
+                    <TableCell>{variant.totalStockQuantity}</TableCell>
+                    <TableCell>{variant.unitOfMeasure}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon">
+                        <PackagePlus className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-red-500"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
+      )}
+
+      <div className="space-y-4">
+        {!product?.hasVariants && (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() =>
+                handleStockAdjustment({
+                  quantity: 1,
+                  costPrice: 0,
+                  currency: product?.baseCurrency || "",
+                  receivedDate: new Date().toISOString(),
+                  supplierInfo: "",
+                  type: "MANUAL",
+                  notes: "Manual adjustment +1",
+                })
+              }
+            >
+              +1 {product?.unitOfMeasure}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() =>
+                handleStockAdjustment({
+                  quantity: -1,
+                  costPrice: 0,
+                  currency: product?.baseCurrency || "",
+                  receivedDate: new Date().toISOString(),
+                  supplierInfo: "",
+                  type: "MANUAL",
+                  notes: "Manual adjustment -1",
+                })
+              }
+            >
+              -1 {product?.unitOfMeasure}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() =>
+                handleStockAdjustment({
+                  quantity: 5,
+                  costPrice: 0,
+                  currency: product?.baseCurrency || "",
+                  receivedDate: new Date().toISOString(),
+                  supplierInfo: "",
+                  type: "MANUAL",
+                  notes: "Manual adjustment +5",
+                })
+              }
+            >
+              +5 {product?.unitOfMeasure}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() =>
+                handleStockAdjustment({
+                  quantity: -5,
+                  costPrice: 0,
+                  currency: product?.baseCurrency || "",
+                  receivedDate: new Date().toISOString(),
+                  supplierInfo: "",
+                  type: "MANUAL",
+                  notes: "Manual adjustment -5",
+                })
+              }
+            >
+              -5 {product?.unitOfMeasure}
+            </Button>
+          </div>
+        )}
 
         <h2 className="text-xl font-semibold">Stock Movement History</h2>
         {stockMovements.length > 0 ? (
@@ -126,14 +265,14 @@ export default function ProductStockPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {stockMovements.map((movement) => (
+                {stockMovements.map((movement: any) => (
                   <TableRow key={movement.id}>
                     <TableCell>
                       {format(new Date(movement.receivedDate), "PP")}
                     </TableCell>
                     <TableCell>{movement.type || "PURCHASE"}</TableCell>
                     <TableCell className="text-right">
-                      {movement.quantity} {product?.unitOfMeasure}
+                      {Math.floor(movement.quantity)} {product?.unitOfMeasure}
                     </TableCell>
                     <TableCell className="text-right">
                       {movement.costPrice?.toLocaleString()} {movement.currency}

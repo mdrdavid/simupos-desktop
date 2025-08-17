@@ -7,14 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/context/AuthContext";
 
 export default function AddVariantPage() {
   const router = useRouter();
   const { id } = useParams();
   const { toast } = useToast();
   const { createVariant } = useAgroProduct();
-  const { currentBranchId } = useAuth();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -44,7 +42,6 @@ export default function AddVariantPage() {
         currentAverageCostPrice: Number(formData.currentAverageCostPrice) || 0,
         totalStockQuantity: Number(formData.totalStockQuantity) || 0,
         isActive: formData.isActive,
-          branchId: currentBranchId
       };
 
       // Validation checks
@@ -82,35 +79,6 @@ export default function AddVariantPage() {
       setIsLoading(false);
     }
   };
-  //   const handleSubmit = async (e: React.FormEvent) => {
-  //     e.preventDefault();
-  //     setIsLoading(true);
-
-  //     try {
-  //       await createVariant(id as string, {
-  //         ...formData,
-  //         minStockLevel: Number(formData.minStockLevel) || undefined,
-  //         currentAverageCostPrice: Number(formData.currentAverageCostPrice) || 0,
-  //         totalStockQuantity: Number(formData.totalStockQuantity) || 0
-  //       });
-
-  //       toast({
-  //         title: "Variant added",
-  //         description: `Variant ${formData.name} has been added successfully`,
-  //       });
-
-  //       router.push(`/agro/${id}/variants`);
-  //     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  //     } catch (error) {
-  //       toast({
-  //         title: "Error",
-  //         description: "Failed to add variant",
-  //         variant: "destructive",
-  //       });
-  //     } finally {
-  //       setIsLoading(false);
-  //     }
-  //   };
 
   return (
     <div className="container mx-auto p-4">

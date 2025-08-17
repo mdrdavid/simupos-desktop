@@ -1,7 +1,6 @@
 export const httpClient = async (url: string, options?: RequestInit) => {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API || 'http://localhost:7000';
   const response = await fetch(
-    `${backendUrl}${url}`,
+    `${process.env.NEXT_PUBLIC_BACKEND_API}${url}`,
     options,
   );
 

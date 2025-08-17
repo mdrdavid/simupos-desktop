@@ -64,56 +64,63 @@ interface BranchProviderProps {
 }
 
 export const BranchProvider = ({ children }: BranchProviderProps) => {
-  const { 
-    currentBusinessId, 
+  const {
+    currentBusinessId,
     businessData,
     currentBranchId,
     setCurrentBranchId,
-    getAuthHeaders 
+    getAuthHeaders,
+    isAuthenticated,
   } = useAuth();
-  
+
   const [currentBranch, setCurrentBranch] = useState<Branch | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadBranches = useCallback(async () => {
+    if (!isAuthenticated || !currentBusinessId) {
+      setBranches([]);
+      setCurrentBranch(null);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      if (!currentBusinessId) {
-        setBranches([]);
-        setCurrentBranch(null);
-        return;
-      }
+      const data = await httpClient(
+        `/branches/business/${currentBusinessId}`,
+        {
+          headers: await getAuthHeaders(),
+        }
+      );
 
-      const data = await httpClient(`/branches/business/${currentBusinessId}`, {
-        headers: await getAuthHeaders(),
-      });
-
-      const branchesWithBusiness = data.branches?.map((branch: Branch) => ({
-        ...branch,
-        business: businessData,
-      })) || [];
+      const branchesWithBusiness =
+        data.branches?.map((branch: Branch) => ({
+          ...branch,
+          business: businessData,
+        })) || [];
 
       setBranches(branchesWithBusiness);
 
       // Determine current branch
       let selectedBranch: Branch | null = null;
-      
+
       // 1. Check if there's a stored branch ID that exists in the new branches
       if (currentBranchId) {
-        selectedBranch = branchesWithBusiness.find(
-          (b: Branch) => b.id === currentBranchId
-        ) || null;
+        selectedBranch =
+          branchesWithBusiness.find((b: Branch) => b.id === currentBranchId) ||
+          null;
       }
-      
+
       // 2. Fallback to main branch if no selection or selected branch not found
       if (!selectedBranch) {
-        selectedBranch = branchesWithBusiness.find((b: Branch) => b.isMain) || null;
+        selectedBranch =
+          branchesWithBusiness.find((b: Branch) => b.isMain) || null;
       }
-      
+
       // 3. Fallback to first branch if no main branch
       if (!selectedBranch && branchesWithBusiness.length > 0) {
         selectedBranch = branchesWithBusiness[0];
@@ -131,14 +138,19 @@ export const BranchProvider = ({ children }: BranchProviderProps) => {
         setCurrentBranchId(null);
       }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load branches"
-      );
+      setError(err instanceof Error ? err.message : "Failed to load branches");
       console.error("Branch loading error:", err);
     } finally {
       setLoading(false);
     }
-  }, [currentBusinessId, businessData, currentBranchId, getAuthHeaders, setCurrentBranchId]);
+  }, [
+    isAuthenticated,
+    currentBusinessId,
+    businessData,
+    currentBranchId,
+    getAuthHeaders,
+    setCurrentBranchId,
+  ]);
 
   // Load branches when business changes or on initial load
   useEffect(() => {

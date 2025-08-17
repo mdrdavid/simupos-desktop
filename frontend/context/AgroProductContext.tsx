@@ -16,7 +16,6 @@ import {
 import { httpClient } from "../src/data/api/httpClient";
 import { useAuth } from "./AuthContext";
 
-
 interface AgroProductContextType {
   agroProducts: AgroProduct[];
   loading: boolean;
@@ -52,7 +51,7 @@ interface AgroProductContextType {
       supplierInfo?: string;
     }
   ) => Promise<AgroProduct>;
-   createProduct: (productData: any) => Promise<AgroProduct>;
+  createProduct: (productData: any) => Promise<AgroProduct>;
   createVariant: (
     productId: string,
     variantData: any
@@ -66,10 +65,15 @@ interface AgroProductContextType {
   getAgroProductById: (id: string) => AgroProduct | undefined;
   updateProductStock: (
     productId: string,
-    quantityChange: number // Can be positive (add) or negative (deduct).
+    quantityChange: number, // Can be positive (add) or negative (deduct).
+      reason?: string
   ) => Promise<void>;
   fetchProductsByBranch: (branchId: string) => Promise<void>;
   fetchProductDetails: (productId: string) => Promise<AgroProduct>;
+  fetchVariantStockHistory: (
+    productId: string,
+    variantId: string
+  ) => Promise<StockShipment[]>;
 }
 
 const AgroProductContext = createContext<AgroProductContextType | undefined>(
@@ -95,7 +99,7 @@ export const AgroProductProvider = ({
   children,
   initialBranchId,
 }: AgroProductProviderProps) => {
-  const { getAuthHeaders,currentBranchId } = useAuth();
+  const { getAuthHeaders, currentBranchId } = useAuth();
   const [agroProducts, setAgroProducts] = useState<AgroProduct[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -132,16 +136,32 @@ export const AgroProductProvider = ({
     setLoading(true);
     try {
       const headers = await getAuthHeaders();
-      const response = await httpClient(`/agro/${productId}`, { headers });
-      return response.data;
-    } catch (err) {
-      console.error("Error fetching product details:", err);
-      throw err;
+      const response = await httpClient(
+        `/agro/${productId}?includeVariants=true`,
+        {
+          headers,
+        }
+      );
+      console.log("Product details response:", response);
+      if (!response) {
+        throw new Error("Product not found");
+      }
+
+      // Ensure variants exists even if empty
+      if (!response.variants) {
+        response.variants = [];
+      }
+
+      return response;
+    } catch (err: any) {
+      console.error("Detailed product fetch error:", err);
+      throw new Error(
+        err.response?.data?.message || "Failed to fetch product details"
+      );
     } finally {
       setLoading(false);
     }
   }, []);
-
   const addAgroProduct = useCallback(
     async (
       productData: Omit<
@@ -249,113 +269,69 @@ export const AgroProductProvider = ({
     },
     []
   );
-  const createProduct = useCallback(async (productData: any) => {
-  setLoading(true);
-  try {
-    console.log("Creating product with data:", productData);
-    console.log("Current branch ID:", currentBranchId);
-    const headers = await getAuthHeaders();
-    const response = await httpClient("/agro/web", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        ...productData,
-        branchId: currentBranchId // Ensure branchId is included
-      }),
-    });
-    
-    setAgroProducts(prev => [...prev, response.data]);
-    return response.data;
-  } catch (error) {
-    console.error("Error creating product:", error);
-    throw error;
-  } finally {
-    setLoading(false);
-  }
-}, [getAuthHeaders]);
+  const createProduct = useCallback(
+    async (productData: any) => {
+      setLoading(true);
+      try {
+        const headers = await getAuthHeaders();
+        const response = await httpClient("/agro/web", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            ...productData,
+            branchId: currentBranchId, // Ensure branchId is included
+          }),
+        });
 
-const createVariant = useCallback(async (productId: string, variantData: any) => {
-  setLoading(true);
-  try {
-    console.log("Creating variant with data:", variantData);
-    console.log("productId data:", productId);
-    console.log("Current branch ID:", currentBranchId);
-    const headers = await getAuthHeaders();
-    const response = await httpClient(`/agro/${productId}/variants`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        ...variantData,
-      }),
-    });
+        setAgroProducts((prev) => [...prev, response.data]);
+        return response.data;
+      } catch (error) {
+        console.error("Error creating product:", error);
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [getAuthHeaders]
+  );
 
-    setAgroProducts(prev => prev.map(product => 
-      product.id === productId
-        ? { ...product, variants: [...(product.variants || []), response.data] }
-        : product
-    ));
+  const createVariant = useCallback(
+    async (productId: string, variantData: any) => {
+      setLoading(true);
+      try {
+        console.log("Creating variant with data:", variantData);
+        console.log("productId data:", productId);
+        console.log("Current branch ID:", currentBranchId);
+        const headers = await getAuthHeaders();
+        const response = await httpClient(`/agro/${productId}/variants`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            ...variantData,
+          }),
+        });
 
-    return response.data;
-  } catch (error) {
-    console.error("Error creating variant:", error);
-    throw error;
-  } finally {
-    setLoading(false);
-  }
-}, [getAuthHeaders]);
+        setAgroProducts((prev) =>
+          prev.map((product) =>
+            product.id === productId
+              ? {
+                  ...product,
+                  variants: [...(product.variants || []), response.data],
+                }
+              : product
+          )
+        );
 
-  //   const createProduct = useCallback(async (productData: any) => {
-  //   setLoading(true);
-  //   try {
-  //     console.log("Creating product with data:", productData);
-  //     const headers = await getAuthHeaders();
-  //     const response = await httpClient("/agro/web", {
-  //       method: "POST",
-  //       headers,
-  //       body: JSON.stringify(productData),
-  //     });
-  //     setAgroProducts(prev => [...prev, response.data]);
-  //     return response.data;
-  //   } catch (error) {
-  //     console.error("Error creating product:", error);
-  //     throw error;
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // }, [getAuthHeaders]);
-  // const createVariant = useCallback(
-  //   async (productId: string, variantData: any) => {
-  //     setLoading(true);
-  //     try {
-  //       const headers = await getAuthHeaders();
-  //       const response = await httpClient(`/agro/${productId}/variants`, {
-  //         method: "POST",
-  //         headers,
-  //         body: JSON.stringify(variantData),
-  //       });
-
-  //       // Update the product in state to include the new variant
-  //       setAgroProducts((prev) =>
-  //         prev.map((product) =>
-  //           product.id === productId
-  //             ? {
-  //                 ...product,
-  //                 variants: [...(product.variants || []), response.data],
-  //               }
-  //             : product
-  //         )
-  //       );
-
-  //       return response.data;
-  //     } catch (error) {
-  //       console.error("Error creating variant:", error);
-  //       throw error;
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   },
-  //   [getAuthHeaders]
-  // );
+        return response.data;
+      } catch (error) {
+        console.error("Error creating variant:", error);
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [getAuthHeaders]
+  );
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const addStockShipmentMobile = useCallback(
@@ -399,52 +375,63 @@ const createVariant = useCallback(async (productId: string, variantData: any) =>
   );
 
   const addStockShipment = useCallback(
-    async (productId: string, variantId: string | null, shipmentData: any) => {
-      setLoading(true);
-      try {
-        const headers = await getAuthHeaders();
-        const endpoint = variantId
-          ? `/agro/${productId}/variants/${variantId}/shipments/web`
-          : `/agro/${productId}/shipments/web`;
+  async (productId: string, variantId: string | null, shipmentData: any) => {
+    setLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const endpoint = variantId
+        ? `/agro/${productId}/variants/${variantId}/shipments/web`
+        : `/agro/${productId}/shipments`;
 
-        const response = await httpClient(endpoint, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(shipmentData),
-        });
+      // Ensure required fields are present
+      const completeShipmentData = {
+        ...shipmentData,
+        type: shipmentData.type || 'PURCHASE',
+        notes: shipmentData.notes || '',
+      };
 
-        // Update state with the new stock levels
-        setAgroProducts((prev) =>
-          prev.map((product) => {
-            if (product.id !== productId) return product;
+      const response = await httpClient(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(completeShipmentData),
+      });
 
-            if (variantId) {
-              // Update variant stock
-              return {
-                ...product,
-                variants: product.variants?.map((variant) =>
-                  variant.id === variantId
-                    ? { ...variant, ...response.data.variant }
-                    : variant
-                ),
-              };
-            } else {
-              // Update product stock
-              return { ...product, ...response.data.product };
-            }
-          })
-        );
 
-        return response.data;
-      } catch (error) {
-        console.error("Error adding stock shipment:", error);
-        throw error;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [getAuthHeaders]
-  );
+      const responseData = await response;
+
+      // Update state with the new stock levels.
+      setAgroProducts((prev) =>
+        prev.map((product) => {
+          if (product.id !== productId) return product;
+
+          if (variantId) {
+            return {
+              ...product,
+              variants: product.variants?.map((variant) =>
+                variant.id === variantId
+                  ? { ...variant, ...responseData.variant }
+                  : variant
+              ),
+            };
+          }
+          return { ...product, ...responseData.product };
+        })
+      );
+
+      return responseData;
+    } catch (error:any) {
+      console.error("Detailed error:", error);
+      throw new Error(
+        error.response?.data?.message || 
+        error.message || 
+        "Failed to add stock shipment"
+      );
+    } finally {
+      setLoading(false);
+    }
+  },
+  [getAuthHeaders]
+);
 
   const getAgroProductById = useCallback(
     (id: string) => {
@@ -454,39 +441,73 @@ const createVariant = useCallback(async (productId: string, variantData: any) =>
   );
 
   const updateProductStock = useCallback(
-    async (productId: string, quantityChange: number) => {
-      setLoading(true);
-      try {
-        const headers = await getAuthHeaders();
-        const response = await httpClient(`/agro/${productId}/stock`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...headers,
-          },
-          body: JSON.stringify({ quantityChange }),
-        });
+  async (
+    productId: string,
+    quantityChange: number,
+    reason?: string,
+    variantId?: string
+  ) => {
+    setLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const payload = {
+        quantityChange,
+        reason: reason || `Stock adjustment from sale`,
+        currency: "UGX",
+        variantId: variantId || undefined 
+      };
+      const response = await httpClient(`/agro/${productId}/stock`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...headers,
+        },
+        body: JSON.stringify(payload),
+      });
 
-        setAgroProducts((prev) =>
-          prev.map((p) => (p.id === productId ? response.data : p))
-        );
-      } catch (err) {
-        console.error("Error updating product stock:", err);
-        throw err;
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
+      const updatedProduct = await response;
+      
+      setAgroProducts((prev) =>
+        prev.map((p) => (p.id === productId ? updatedProduct : p))
+      );
+      return updatedProduct;
+    } catch (err) {
+      console.error("Error updating product stock:", err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  },
+  []
+);
 
-  // Load initial data if branchId is provided
   useEffect(() => {
     if (initialBranchId) {
       fetchProductsByBranch(initialBranchId);
     }
   }, [initialBranchId, fetchProductsByBranch]);
 
+  const fetchVariantStockHistory = useCallback(
+    async (productId: string, variantId: string) => {
+      setLoading(true);
+      try {
+        const headers = await getAuthHeaders();
+        const response = await httpClient(
+          `/agro/${productId}/variants/${variantId}/shipments`,
+          { headers }
+        );
+        return response.data;
+      } catch (err: any) {
+        console.error("Detailed error:", err.response?.data || err.message);
+        throw new Error(
+          err.response?.data?.message || "Failed to fetch stock history"
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [getAuthHeaders]
+  );
   return (
     <AgroProductContext.Provider
       value={{
@@ -502,6 +523,7 @@ const createVariant = useCallback(async (productId: string, variantData: any) =>
         updateProductStock,
         fetchProductsByBranch,
         fetchProductDetails,
+        fetchVariantStockHistory,
       }}
     >
       {children}

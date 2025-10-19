@@ -5,9 +5,23 @@ import { Logger } from "./logger";
 import { InitializationService } from "./services";
 
 dotenv.config();
-AppDataSource.initialize()
-  .then(async () => {
-    Logger.info("Database connection initialized.");
+
+async function waitForTables() {
+  // Wait a bit for tables to be created by synchronize
+  return new Promise((resolve) => setTimeout(resolve, 2000));
+}
+
+async function initializeApp() {
+  try {
+    // Initialize database connection
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+      Logger.info("Database connection initialized.");
+    }
+
+    // Wait for tables to be created
+    await waitForTables();
+
     // Initialize database with default data
     const initializationService = new InitializationService();
     await initializationService.initializeDatabase();
@@ -19,7 +33,10 @@ AppDataSource.initialize()
       Logger.info(`Environment set to "${process.env.NODE_ENV}".`);
       Logger.info(`Server running on http://localhost:${port}.`);
     });
-  })
-  .catch((error) => {
+  } catch (error) {
     Logger.error("Error during Data Source initialization", error);
-  });
+    process.exit(1);
+  }
+}
+
+initializeApp();

@@ -38,11 +38,18 @@ function ensureDatabaseClean() {
       console.log("✓ Created database directory:", dbDir);
     }
 
-    // Delete existing database file to start fresh
-    if (fs.existsSync(dbPath)) {
-      fs.unlinkSync(dbPath);
-      console.log("✓ Deleted existing database file:", dbPath);
-    }
+    // Delete existing database file and associated WAL/SHM files to start fresh
+    const filesToDelete = [dbPath, `${dbPath}-wal`, `${dbPath}-shm`];
+    filesToDelete.forEach((file) => {
+      if (fs.existsSync(file)) {
+        try {
+          fs.unlinkSync(file);
+          console.log("✓ Deleted existing database file:", file);
+        } catch (err) {
+          console.error(`Failed to delete file ${file}:`, err);
+        }
+      }
+    });
   });
 }
 

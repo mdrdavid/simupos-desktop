@@ -177,16 +177,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       return;
     }
     
+    authCheckInProgress.current = true;
     try {
-      authCheckInProgress.current = true;
       setIsLoading(true);
-      const token = await getLocalStorageItem("authToken");
-      const userData = await getLocalStorageItem("userData");
+      const token = getLocalStorageItem("authToken");
+      const userData = getLocalStorageItem("userData");
 
       if (token && userData) {
-        const branchId = await getLocalStorageItem("currentBranchId");
-        const businessId = await getLocalStorageItem("currentBusinessId");
-        const bizData = await getLocalStorageItem("businessData");
+        const branchId = getLocalStorageItem("currentBranchId");
+        const businessId = getLocalStorageItem("currentBusinessId");
+        const bizData = getLocalStorageItem("businessData");
 
         setUser(userData);
         setIsAuthenticated(true);
@@ -198,14 +198,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         const subStatus = getSubscriptionState(userData);
         setSubscriptionStatus(subStatus);
       } else {
-        await clearAuthData();
+        // Only clear if we actually attempted and failed,
+        // but for initial check, just set unauthenticated
         setUser(null);
         setIsAuthenticated(false);
         setSubscriptionStatus("none");
       }
     } catch (error) {
       console.error("Auth check error:", error);
-      await clearAuthData();
+      setUser(null);
+      setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
       authCheckInProgress.current = false;
@@ -299,7 +301,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   const getAuthHeaders = useCallback(async () => {
-    const token = await getLocalStorageItem("authToken");
+    const token = getLocalStorageItem("authToken");
     if (!token) {
       // Redirect to login if no token exists
       // window.location.href = '/auth/login';
@@ -316,7 +318,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const refreshToken = async () => {
   try {
-    const refreshToken = await getLocalStorageItem("refreshToken");
+    const refreshToken = getLocalStorageItem("refreshToken");
     const response = await httpClient('/auth/refresh', {
       method: 'POST',
       headers: {
@@ -592,7 +594,7 @@ const refreshUser = useCallback(async () => {
   const logout = useCallback(async () => {
     try {
       setIsLoading(true);
-      const token = await getLocalStorageItem("authToken");
+      const token = getLocalStorageItem("authToken");
 
       try {
         await httpClient("/auth/logout", {

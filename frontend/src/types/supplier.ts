@@ -22,35 +22,44 @@ export interface Supplier {
 }
 
 export interface SupplierOrder {
-  id: string
-  supplierId: string
-  orderNumber: string
-  date: string
-  amount: number
-  status: "pending" | "completed" | "cancelled"
-  items: SupplierOrderItem[]
-  notes?: string
+  id: string;
+  supplierId: string;
+  orderNumber: string;
+  date: string;
+  totalAmount: number;
+  status: "pending" | "completed" | "cancelled";
+  paymentStatus: "paid" | "partial" | "pending";
+  amountPaid: number;
+  items: SupplierOrderItem[];
+  payments: SupplierPayment[];
+  notes?: string;
 }
 
 export interface SupplierOrderItem {
-  id: string
-  productId: string
-  productName: string
-  quantity: number
-  unitPrice: number
-  totalPrice: number
+  id: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  // Fields for creating a new item
+  sellingPrice?: number;
+  category?: string;
+  unit?: string;
+  barcode?: string;
+  description?: string;
 }
 
 export interface SupplierPayment {
-  id: string
-  supplierId: string
-  amount: number
-  paymentMethod: string
-  reference: string
-  date: string
-  status: "completed" | "pending" | "failed"
-  notes?: string
-  createdAt: string
+  id: string;
+  supplierId: string;
+  orderId: string;
+  amount: number;
+  paymentMethod: string;
+  reference: string;
+  date: string;
+  status: "completed" | "pending" | "failed";
+  notes?: string;
+  createdAt: string;
 }
 
 export interface SupplierStats {
@@ -75,12 +84,50 @@ export interface CreateSupplierData {
   bankName?: string
   accountNumber?: string
   notes?: string
+  businessId?: string
+  branchId?: string
 }
 
 export interface RecordPaymentData {
-  amount: number
-  paymentMethod: string
-  reference: string
-  date: string
-  notes?: string
+  orderId: string;
+  amount: number;
+  paymentMethod: string;
+  reference: string;
+  date: string;
+  notes?: string;
+}
+
+export interface CreateOrderItemData {
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  // Fields for creating a new item
+  sellingPrice?: number;
+  category?: string;
+  unit?: string;
+  barcode?: string;
+  description?: string;
+  isNewItem?: boolean;
+}
+
+export interface CreateOrderData {
+  supplierId: string;
+  orderNumber?: string;
+  date: string;
+  items: CreateOrderItemData[];
+  notes?: string;
+}
+
+export interface SupplierReport {
+  supplier: Supplier;
+  summary: {
+    totalPurchases: number;
+    totalPaid: number;
+    outstandingBalance: number;
+    totalOrders: number;
+    totalPayments: number;
+  };
+  orders: SupplierOrder[];
+  payments: SupplierPayment[];
 }

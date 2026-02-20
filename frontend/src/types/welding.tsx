@@ -1,38 +1,60 @@
+import { WeldingMaterial } from "./weldingJob";
+import { WeldingMaterialNeeded, WeldingMaterialStock } from "./weldingMaterial";
+
 export enum WeldingJobStatus {
-  PENDING = "PENDING",
-  QUOTED = "QUOTED",
-  APPROVED = "APPROVED",
-  IN_PROGRESS = "IN_PROGRESS",
-  AWAITING_MATERIALS = "AWAITING_MATERIALS",
-  READY_FOR_PAINTING = "READY_FOR_PAINTING",
-  COMPLETED = "COMPLETED",
-  DELIVERED = "DELIVERED",
+  PENDING = "Pending",
+  QUOTED = "Quoted",
+  APPROVED = "Approved",
+  IN_PROGRESS = "In Progress",
+  AWAITING_MATERIALS = "Awaiting Materials",
+  READY_FOR_PAINTING = "Ready for Painting",
+  COMPLETED = "Completed",
+  DELIVERED = "Delivered",
 }
 
-export interface WeldingMaterial {
+export interface Artisan {
   id: string;
-  name: string;
-  quantity: number;
-  unit: string;
-  costPerUnit?: number;
-  isCustom: boolean;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+}
+
+export interface Assignment {
+  id: string;
+  jobId: string;
+  userId: string;
+  user: Artisan;
+  agreedWage: string;
+  amountPaid: string;
+  completionDate: string | null;
+  createdAt: string;
+  isDeleted: boolean;
+  notes: string;
+  startDate: string | null;
+  status: string;
+  updatedAt: string;
 }
 
 export interface WeldingJob {
-  id: string;
+  id:string;
   branchId: string;
   customerName: string;
   customerContact: string;
   customerLocation?: string;
   jobType: string;
   description: string;
-  materialsNeeded: WeldingMaterial[];
+  materialsNeeded: WeldingMaterialNeeded[];
   estimatedCost: number;
+  totalExpenses?: number;
+  estimatedProfit?: number;
+  profitMargin?: number;
   requiredDeliveryDate: string;
   status: WeldingJobStatus;
   activeQuoteId?: string;
   activeInvoiceId?: string;
-  assignedArtisans?: string[];
+  assignedArtisans?: { artisanId: string; wage?: number }[];
+  assignments?: Assignment[];
   imageUploads?: { stage: string; uri: string; timestamp: string }[];
   deliveryConfirmed?: boolean;
   customerRating?: number;
@@ -47,17 +69,6 @@ export interface WeldingJob {
   }[];
   createdAt: string;
   updatedAt: string;
-}
-
-export interface WeldingMaterialStockItem {
-  id: string;
-  name: string;
-  unit: string;
-  quantityInStock: number;
-  lowStockThreshold?: number;
-  supplierInfo?: string;
-  lastRestockDate?: string;
-  notes?: string;
 }
 
 export interface CustomerSnapshot {
@@ -142,11 +153,14 @@ export interface WeldingInvoice {
 // Context type definitions
 export interface WeldingContextType {
   weldingJobs: WeldingJob[];
-  materialStock: WeldingMaterialStockItem[];
+  materialStock: WeldingMaterialStock[];
   loadingJobs: boolean;
   loadingMaterialStock: boolean;
   errorMaterialStock: string | null;
   error: string | null;
+  totalJobs: number;
+  totalPages: number;
+  currentPage: number;
   addWeldingJob: (
     job: Omit<WeldingJob, "id" | "createdAt" | "updatedAt" | "status">
   ) => Promise<WeldingJob | null>;
@@ -155,19 +169,23 @@ export interface WeldingContextType {
     updates: Partial<WeldingJob>
   ) => Promise<void>;
   deleteWeldingJob: (jobId: string) => Promise<void>;
-  getWeldingJobById: (jobId: string) => WeldingJob | undefined;
-  fetchWeldingJobs: () => Promise<void>;
+  getWeldingJobById: (jobId: string) => WeldingJob | undefined
+   getWeldingJobByIdNew: (jobId: string) => Promise<WeldingJob | null>;
+  fetchWeldingJobs: (page?: number, limit?: number, status?: string) => Promise<void>;
   syncJobsWithBackend: () => Promise<void>;
   addMaterialStockItem: (
-    item: Omit<WeldingMaterialStockItem, "id">
-  ) => Promise<WeldingMaterialStockItem | null>;
+    item: Omit<
+      WeldingMaterialStock,
+      "id" | "createdAt" | "updatedAt" | "isDeleted"
+    >
+  ) => Promise<WeldingMaterialStock | null>;
   updateMaterialStockItem: (
     itemId: string,
-    updates: Partial<WeldingMaterialStockItem>
+    updates: Partial<WeldingMaterialStock>
   ) => Promise<void>;
   getMaterialStockItemById: (
     itemId: string
-  ) => WeldingMaterialStockItem | undefined;
+  ) => WeldingMaterialStock | undefined;
   deleteMaterialStockItem: (itemId: string) => Promise<void>;
   fetchMaterialStock: () => Promise<void>;
   syncMaterialStockWithBackend: () => Promise<void>;
@@ -180,6 +198,19 @@ export interface WeldingContextType {
     quantity: number,
     supplierInfo?: string
   ) => Promise<boolean>;
+
+  // Job Materials
+  addMaterialToJob: (
+    jobId: string,
+    materialData: Omit<WeldingMaterialNeeded, "id" | "createdAt" | "updatedAt">
+  ) => Promise<WeldingMaterialNeeded | null>;
+  updateJobMaterial: (
+    materialId: string,
+    updates: Partial<WeldingMaterialNeeded>
+  ) => Promise<void>;
+  removeMaterialFromJob: (materialId: string) => Promise<void>;
+  getAvailableStock: (branchId: string) => Promise<WeldingMaterialStock[]>;
+
   // Sync status
   isSyncing: boolean;
   lastSyncTime: Date | null;
@@ -232,56 +263,9 @@ export interface WeldingFinancialContextType {
   ) => Promise<Payment | null>;
   deleteInvoice: (invoiceId: string) => Promise<void>;
   fetchQuotes: () => Promise<void>;
-  fetchInvoices: () => Promise<void>;
+  fetchInvoices: () => Promise<WeldingInvoice[] | void>;
   syncQuotesWithBackend: () => Promise<void>;
   syncInvoicesWithBackend: () => Promise<void>;
   isSyncing: boolean;
   lastSyncTime: Date | null;
 }
-
-// export interface WeldingFinancialContextType {
-//   quotes: WeldingQuote[];
-//   invoices: WeldingInvoice[];
-//   loadingQuotes: boolean;
-//   loadingInvoices: boolean;
-//   getQuoteById: (quoteId: string) => WeldingQuote | undefined;
-//   createQuote: (
-//     jobId: string,
-//     lineItems: LineItem[],
-//     notes?: string,
-//     validUntil?: Date
-//   ) => Promise<WeldingQuote | null>;
-//   updateQuoteStatus: (quoteId: string, status: QuoteStatus) => Promise<void>;
-//   updateQuote: (
-//     quoteId: string,
-//     updates: {
-//       lineItems: LineItem[];
-//       notes?: string;
-//       validUntil?: Date;
-//       status?: QuoteStatus;
-//     }
-//   ) => Promise<WeldingQuote | null>;
-//   deleteQuote: (quoteId: string) => Promise<void>;
-//   getInvoiceById: (invoiceId: string) => WeldingInvoice | undefined;
-//   createInvoiceFromQuote: (
-//     quote: WeldingQuote,
-//     issueDate?: Date,
-//     dueDate?: Date,
-//     includeTax?: boolean
-//   ) => Promise<WeldingInvoice | null>;
-//   createStandaloneInvoice: (
-//     jobId: string,
-//     lineItems: LineItem[],
-//     issueDate?: Date,
-//     dueDate?: Date,
-//     notes?: string,
-//     includeTax?: boolean
-//   ) => Promise<WeldingInvoice | null>;
-//   recordPaymentForInvoice: (
-//     invoiceId: string,
-//     payment: Omit<Payment, "id">
-//   ) => Promise<Payment | null>;
-//   deleteInvoice: (invoiceId: string) => Promise<void>;
-//   fetchQuotes: () => Promise<void>;
-//   fetchInvoices: () => Promise<void>;
-// }

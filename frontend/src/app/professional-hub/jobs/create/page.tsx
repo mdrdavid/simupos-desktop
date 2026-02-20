@@ -1,26 +1,44 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import type React from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Save, ArrowLeft } from "lucide-react";
+import { Plus, Trash2, Save, ArrowLeft, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useWelding } from "@/context/WeldingContext";
-import type { WeldingMaterial } from "@/src/types/welding";
 import { useAuth } from "@/context/AuthContext";
+import { useUser } from "@/context/UserContext";
+import { UserRole, type UserProfile } from "@/context/UserContext";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { WeldingMaterial } from "@/src/types/weldingJob";
+
+type AssignedArtisan = {
+  id: string; // Temporary ID for the row
+  artisanId: string;
+  wage: number;
+};
 
 export default function CreateWeldingJobPage() {
   const router = useRouter();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { user, currentBranchId } = useAuth();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { addWeldingJob, materialStock } = useWelding();
+  const { addWeldingJob } = useWelding();
+  const { users, getUsers } = useUser();
+
+  const [artisans, setArtisans] = useState<UserProfile[]>([]);
+  const [assignedArtisans, setAssignedArtisans] = useState<AssignedArtisan[]>([]);
 
   const [formData, setFormData] = useState({
     customerName: "",
@@ -35,8 +53,40 @@ export default function CreateWeldingJobPage() {
   const [materialsNeeded, setMaterialsNeeded] = useState<WeldingMaterial[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (currentBranchId) {
+      getUsers(currentBranchId).then((allUsers) => {
+        const artisanUsers = allUsers.filter(
+          (u) => u.role === UserRole.ARTISAN || u.role === UserRole.OWNER || u.role === UserRole.MANAGER
+        );
+        setArtisans(artisanUsers);
+      });
+    }
+  }, [currentBranchId, getUsers]);
+
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const addArtisan = () => {
+    const newArtisan: AssignedArtisan = {
+      id: Date.now().toString(),
+      artisanId: "",
+      wage: 0,
+    };
+    setAssignedArtisans((prev) => [...prev, newArtisan]);
+  };
+
+  const updateArtisan = (id: string, updates: Partial<AssignedArtisan>) => {
+    setAssignedArtisans((prev) =>
+      prev.map((artisan) =>
+        artisan.id === id ? { ...artisan, ...updates } : artisan
+      )
+    );
+  };
+
+  const removeArtisan = (id: string) => {
+    setAssignedArtisans((prev) => prev.filter((artisan) => artisan.id !== id));
   };
 
   const addMaterial = () => {
@@ -93,8 +143,19 @@ export default function CreateWeldingJobPage() {
       const jobData = {
         ...formData,
         estimatedCost: Number.parseFloat(formData.estimatedCost),
-        materialsNeeded,
-        assignedArtisans: [],
+        materialsNeeded: materialsNeeded.map((material) => ({
+          ...material,
+          weldingJobId: "", // Placeholder, to be set by backend after job creation
+          branchId: currentBranchId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })),
+        assignedArtisans: assignedArtisans
+          .filter((a) => a.artisanId)
+          .map(({ artisanId, wage }) => ({
+            artisanId,
+            wage,
+          })),
         branchId: currentBranchId,
       };
 
@@ -314,9 +375,77 @@ export default function CreateWeldingJobPage() {
           </CardContent>
         </Card>
 
+        {/* Assigned Artisans */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Assign Artisans (Optional)</CardTitle>
+              <Button type="button" onClick={addArtisan} variant="outline">
+                <UserPlus className="w-4 h-4 mr-2" />
+                Add Artisan
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {assignedArtisans.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">
+                No artisans assigned. Click &quot;Add Artisan&quot; to assign.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {assignedArtisans.map((artisan) => (
+                  <div
+                    key={artisan.id}
+                    className="flex items-center gap-4 p-4 border rounded-lg"
+                  >
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Select
+                        onValueChange={(value) =>
+                          updateArtisan(artisan.id, { artisanId: value })
+                        }
+                        value={artisan.artisanId}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select an artisan" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {artisans.map((a) => (
+                            <SelectItem key={a.id} value={a.id}>
+                              {a.firstName} {a.lastName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="number"
+                        placeholder="Wage (optional)"
+                        value={artisan.wage || ""}
+                        onChange={(e) =>
+                          updateArtisan(artisan.id, {
+                            wage: Number.parseFloat(e.target.value) || 0,
+                          })
+                        }
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => removeArtisan(artisan.id)}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Submit Button */}
         <div className="flex justify-end gap-4">
-          <Link href="/welding/jobs">
+          <Link href="/professional-hub/jobs">
             <Button type="button" variant="outline">
               Cancel
             </Button>

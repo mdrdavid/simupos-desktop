@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -18,17 +17,19 @@ import Link from "next/link"
 import { useCRM } from "@/context/CRMContext"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/context/AuthContext"
 
 export default function AddCustomerPage() {
   const router = useRouter()
-  const { addCustomer } = useCRM()
+  const { addCustomer } = useCRM() // Add currentBranchId from context
+  const { currentBranchId } = useAuth() // Add currentBranchId from context
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
     email: "",
     gender: "",
-        customerType: "Regular" as "Regular" | "VIP" | "Wholesale", // Explicit type
+    customerType: "Regular" as "Regular" | "VIP" | "Wholesale",
     notes: "",
   })
   const [birthday, setBirthday] = useState<Date>()
@@ -67,12 +68,17 @@ export default function AddCustomerPage() {
       return
     }
 
+    // Check if branch ID is available
+    if (!currentBranchId) {
+      toast.error("No branch selected. Please select a branch first.")
+      return
+    }
+
     setLoading(true)
     try {
       const customerData = {
         ...formData,
         birthday: birthday ? birthday.toISOString().split("T")[0] : undefined,
-        branchId: "current-branch-id", // This should come from context
       }
 
       await addCustomer(customerData)

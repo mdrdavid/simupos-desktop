@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "@/components/ui/use-toast";
 import {
   DollarSign,
   Plus,
@@ -32,34 +31,23 @@ import {
   Calculator,
 } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
-
-interface CashRegisterSession {
-  id: string;
-  openingFloat: number;
-  totalCashSales: number;
-  cashIn: number;
-  cashOut: number;
-  expectedBalance: number;
-  openedAt: string;
-  status: "OPEN" | "CLOSED";
-  closingBalance?: number;
-  discrepancy?: number;
-  notes?: string;
-}
-
-interface CashRegisterLog {
-  id: string;
-  type: "CASH_IN" | "CASH_OUT" | "SALE" | "OPENING_FLOAT" | "CLOSING_BALANCE";
-  amount: number;
-  reason?: string;
-  createdAt: string;
-}
+import { useCashRegister } from "@/hooks/useCashRegister";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "@/components/ui/use-toast";
 
 export default function CashRegisterPage() {
-  const [currentSession, setCurrentSession] =
-    useState<CashRegisterSession | null>(null);
-  const [logs, setLogs] = useState<CashRegisterLog[]>([]);
-  const [loading, setLoading] = useState(false);
+  const {
+    session: currentSession,
+    logs,
+    loading,
+    openRegister,
+    closeRegister,
+    cashIn: addCash,
+    cashOut: removeCash,
+    loadSessionLogs: loadLogs,
+  } = useCashRegister();
+
+  const { currentBranchId } = useAuth();
 
   // Form states
   const [openingFloat, setOpeningFloat] = useState("");
@@ -75,46 +63,7 @@ export default function CashRegisterPage() {
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showLogsDialog, setShowLogsDialog] = useState(false);
 
-  // Load current session on mount
-  useEffect(() => {
-    loadCurrentSession();
-  }, []);
-
-  const loadCurrentSession = async () => {
-    try {
-      setLoading(true);
-      // Simulate API call
-      const response = await fetch("/api/cash-register/current");
-      const data = await response.json();
-
-      if (data.success && data.data) {
-        setCurrentSession(data.data);
-      }
-    } catch (error) {
-      console.error("Error loading session:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadSessionLogs = async () => {
-    if (!currentSession) return;
-
-    try {
-      const response = await fetch(
-        `/api/cash-register/sessions/${currentSession.id}/logs`
-      );
-      const data = await response.json();
-
-      if (data.success) {
-        setLogs(data.data);
-      }
-    } catch (error) {
-      console.error("Error loading logs:", error);
-    }
-  };
-
-  const openRegister = async () => {
+  const handleOpenRegister = async () => {
     if (!openingFloat || Number(openingFloat) <= 0) {
       toast({
         title: "Error",
@@ -123,47 +72,20 @@ export default function CashRegisterPage() {
       });
       return;
     }
-
-    try {
-      setLoading(true);
-      const response = await fetch("/api/cash-register/open", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          openingFloat: Number(openingFloat),
-          branchId: "current-branch-id", // Get from context
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setCurrentSession(data.data);
-        setOpeningFloat("");
-        setShowOpenDialog(false);
-        toast({
-          title: "Register Opened",
-          description: `Cash register opened with UGX ${formatNumber(Number(openingFloat))} float`,
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: data.message,
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+    if (!currentBranchId) {
       toast({
         title: "Error",
-        description: "Failed to open register",
+        description: "No branch selected",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
+      return;
     }
+    await openRegister(Number(openingFloat));
+    setOpeningFloat("");
+    setShowOpenDialog(false);
   };
 
-  const cashIn = async () => {
+  const handleCashIn = async () => {
     if (!cashAmount || Number(cashAmount) <= 0 || !cashReason.trim()) {
       toast({
         title: "Error",
@@ -172,56 +94,13 @@ export default function CashRegisterPage() {
       });
       return;
     }
-
-    try {
-      setLoading(true);
-      const response = await fetch("/api/cash-register/cash-in", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: currentSession!.id,
-          amount: Number(cashAmount),
-          reason: cashReason,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Update current session
-        setCurrentSession((prev) => ({
-          ...prev!,
-          cashIn: prev!.cashIn + Number(cashAmount),
-          expectedBalance: prev!.expectedBalance + Number(cashAmount),
-        }));
-
-        setCashAmount("");
-        setCashReason("");
-        setShowCashInDialog(false);
-
-        toast({
-          title: "Cash Added",
-          description: `UGX ${formatNumber(Number(cashAmount))} added to register`,
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: data.message,
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to add cash",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
+    await addCash(Number(cashAmount), cashReason);
+    setCashAmount("");
+    setCashReason("");
+    setShowCashInDialog(false);
   };
 
-  const cashOut = async () => {
+  const handleCashOut = async () => {
     if (!cashAmount || Number(cashAmount) <= 0 || !cashReason.trim()) {
       toast({
         title: "Error",
@@ -230,8 +109,10 @@ export default function CashRegisterPage() {
       });
       return;
     }
-
-    if (Number(cashAmount) > currentSession!.expectedBalance) {
+    if (
+      currentSession &&
+      Number(cashAmount) > (currentSession.expectedBalance ?? 0)
+    ) {
       toast({
         title: "Error",
         description: "Insufficient cash in register",
@@ -239,56 +120,13 @@ export default function CashRegisterPage() {
       });
       return;
     }
-
-    try {
-      setLoading(true);
-      const response = await fetch("/api/cash-register/cash-out", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: currentSession!.id,
-          amount: Number(cashAmount),
-          reason: cashReason,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Update current session
-        setCurrentSession((prev) => ({
-          ...prev!,
-          cashOut: prev!.cashOut + Number(cashAmount),
-          expectedBalance: prev!.expectedBalance - Number(cashAmount),
-        }));
-
-        setCashAmount("");
-        setCashReason("");
-        setShowCashOutDialog(false);
-
-        toast({
-          title: "Cash Removed",
-          description: `UGX ${formatNumber(Number(cashAmount))} removed from register`,
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: data.message,
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to remove cash",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
+    await removeCash(Number(cashAmount), cashReason);
+    setCashAmount("");
+    setCashReason("");
+    setShowCashOutDialog(false);
   };
 
-  const closeRegister = async () => {
+  const handleCloseRegister = async () => {
     if (!closingBalance || Number(closingBalance) < 0) {
       toast({
         title: "Error",
@@ -297,54 +135,15 @@ export default function CashRegisterPage() {
       });
       return;
     }
+    await closeRegister(Number(closingBalance), closingNotes);
+    setClosingBalance("");
+    setClosingNotes("");
+    setShowCloseDialog(false);
+  };
 
-    try {
-      setLoading(true);
-      const response = await fetch("/api/cash-register/close", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: currentSession!.id,
-          closingBalance: Number(closingBalance),
-          notes: closingNotes,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setCurrentSession(null);
-        setClosingBalance("");
-        setClosingNotes("");
-        setShowCloseDialog(false);
-
-        const discrepancy =
-          Number(closingBalance) - currentSession!.expectedBalance;
-
-        toast({
-          title: "Register Closed",
-          description: `Register closed with ${
-            discrepancy === 0
-              ? "no discrepancy"
-              : `UGX ${formatNumber(Math.abs(discrepancy))} ${discrepancy > 0 ? "over" : "short"}`
-          }`,
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: data.message,
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to close register",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
+  const handleViewLogs = async () => {
+    await loadLogs();
+    setShowLogsDialog(true);
   };
 
   const getLogTypeIcon = (type: string) => {
@@ -461,7 +260,7 @@ export default function CashRegisterPage() {
                     </div>
                     <Button
                       className="w-full"
-                      onClick={openRegister}
+                      onClick={handleOpenRegister}
                       disabled={loading}
                     >
                       {loading ? "Opening..." : "Open Register"}
@@ -535,7 +334,7 @@ export default function CashRegisterPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-primary">
-                    UGX {formatNumber(currentSession.expectedBalance)}
+                    UGX {formatNumber(currentSession.expectedBalance ?? 0)}
                   </div>
                   <div className="flex items-center text-xs text-gray-500 mt-1">
                     <Calculator className="h-3 w-3 mr-1" />
@@ -567,7 +366,7 @@ export default function CashRegisterPage() {
                   <div>
                     <span className="text-gray-500">Expected Balance:</span>
                     <div className="font-semibold text-primary">
-                      UGX {formatNumber(currentSession.expectedBalance)}
+                      UGX {formatNumber(currentSession.expectedBalance ?? 0)}
                     </div>
                   </div>
                 </div>
@@ -611,7 +410,7 @@ export default function CashRegisterPage() {
                         </div>
                         <Button
                           className="w-full"
-                          onClick={cashIn}
+                          onClick={handleCashIn}
                           disabled={loading}
                         >
                           {loading ? "Adding..." : "Add Cash"}
@@ -639,7 +438,9 @@ export default function CashRegisterPage() {
                           <AlertTriangle className="h-4 w-4" />
                           <AlertDescription>
                             Available cash: UGX{" "}
-                            {formatNumber(currentSession.expectedBalance)}
+                            {formatNumber(
+                              currentSession.expectedBalance ?? 0
+                            )}
                           </AlertDescription>
                         </Alert>
                         <div>
@@ -651,7 +452,7 @@ export default function CashRegisterPage() {
                             placeholder="Enter amount"
                             value={cashAmount}
                             onChange={(e) => setCashAmount(e.target.value)}
-                            max={currentSession.expectedBalance}
+                            max={currentSession.expectedBalance ?? 0}
                           />
                         </div>
                         <div>
@@ -664,7 +465,7 @@ export default function CashRegisterPage() {
                         </div>
                         <Button
                           className="w-full"
-                          onClick={cashOut}
+                          onClick={handleCashOut}
                           disabled={loading}
                         >
                           {loading ? "Removing..." : "Remove Cash"}
@@ -681,7 +482,7 @@ export default function CashRegisterPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={loadSessionLogs}
+                        onClick={handleViewLogs}
                       >
                         <Eye className="h-4 w-4 mr-1" />
                         View Log
@@ -752,7 +553,9 @@ export default function CashRegisterPage() {
                           <CheckCircle className="h-4 w-4" />
                           <AlertDescription>
                             Expected cash in drawer: UGX{" "}
-                            {formatNumber(currentSession.expectedBalance)}
+                            {formatNumber(
+                              currentSession.expectedBalance ?? 0
+                            )}
                           </AlertDescription>
                         </Alert>
                         <div>
@@ -772,7 +575,9 @@ export default function CashRegisterPage() {
                               <span>Expected:</span>
                               <span>
                                 UGX{" "}
-                                {formatNumber(currentSession.expectedBalance)}
+                                {formatNumber(
+                                  currentSession.expectedBalance ?? 0
+                                )}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
@@ -787,26 +592,27 @@ export default function CashRegisterPage() {
                               <span
                                 className={
                                   Number(closingBalance) -
-                                    currentSession.expectedBalance ===
+                                    (currentSession.expectedBalance ?? 0) ===
                                   0
                                     ? "text-green-600"
                                     : Number(closingBalance) -
-                                          currentSession.expectedBalance >
+                                          (currentSession.expectedBalance ??
+                                            0) >
                                         0
                                       ? "text-blue-600"
                                       : "text-red-600"
                                 }
                               >
                                 {Number(closingBalance) -
-                                  currentSession.expectedBalance ===
+                                  (currentSession.expectedBalance ?? 0) ===
                                 0
                                   ? "No Difference"
-                                  : `${Number(closingBalance) - currentSession.expectedBalance > 0 ? "+" : ""}UGX ${formatNumber(
+                                  : `${Number(closingBalance) - (currentSession.expectedBalance ?? 0) > 0 ? "+" : ""}UGX ${formatNumber(
                                       Math.abs(
                                         Number(closingBalance) -
-                                          currentSession.expectedBalance
+                                          (currentSession.expectedBalance ?? 0)
                                       )
-                                    )} ${Number(closingBalance) - currentSession.expectedBalance > 0 ? "Over" : "Short"}`}
+                                    )} ${Number(closingBalance) - (currentSession.expectedBalance ?? 0) > 0 ? "Over" : "Short"}`}
                               </span>
                             </div>
                           </div>
@@ -823,7 +629,7 @@ export default function CashRegisterPage() {
                         </div>
                         <Button
                           className="w-full"
-                          onClick={closeRegister}
+                          onClick={handleCloseRegister}
                           disabled={loading}
                         >
                           {loading ? "Closing..." : "Confirm & Close Register"}

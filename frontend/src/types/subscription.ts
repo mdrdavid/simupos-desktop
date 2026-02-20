@@ -1,10 +1,12 @@
 export interface SubscriptionPlan {
   id: string
   name: string
+  code: string
   price: number
   features: string[]
   maxUsers: number
   maxTransactions: number
+  maxItems: number
   maxLocations: number
   isPopular: boolean
   hasInventoryManagement: boolean
@@ -22,7 +24,7 @@ export interface Subscription {
   planId: string
   planName: string
   price: number
-  status: "active" | "inactive" | "cancelled" | "expired"
+  status: "active" | "expired" | "cancelled" | "pending";
   startDate: string
   endDate: string
   nextBillingDate: string
@@ -57,11 +59,26 @@ export interface UsageStats {
 }
 
 export interface SubscriptionContextType {
-  plans: SubscriptionPlan[]
-  currentSubscription: Subscription | null
-  loading: boolean
-  error: string | null
-  subscribe: (planId: string, paymentMethod: string, phoneNumber?: string) => Promise<boolean>
-  cancelSubscription: () => Promise<boolean>
-  getCurrentUsage: () => Promise<UsageStats>
+  plans: SubscriptionPlan[];
+  currentSubscription: Subscription | null;
+  subscriptionHistory: Subscription[];
+  loading: boolean;
+  error: string | null;
+
+  // Subscription management
+  subscribe: (planId: string, paymentMethod: string, phoneNumber?: string) => Promise<boolean>;
+  cancelSubscription: () => Promise<boolean>;
+  renewSubscription: () => Promise<Subscription | null>;
+  toggleAutoRenew: () => Promise<void>;
+
+  // Utility functions
+  getDaysRemaining: () => number;
+  hasFeatureAccess: (feature: string) => boolean;
+  getUsageStats: () => {
+    usersUsed: number;
+    transactionsUsed: number;
+    usersLimit: number;
+    transactionsLimit: number;
+  };
+  getCurrentUsage: () => Promise<UsageStats>;
 }

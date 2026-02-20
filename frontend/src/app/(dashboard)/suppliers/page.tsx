@@ -17,6 +17,7 @@ import {
   Calendar,
   TrendingUp,
   Users,
+  BarChart3,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -32,14 +33,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useSupplier } from "@/context/SupplierContext";
+import { useBranch } from "@/context/BranchContext";
 import Link from "next/link";
 
 export default function SuppliersPage() {
-  const { suppliers, loading, deleteSupplier, getSupplierStats } =
-    useSupplier();
+  const {
+    suppliers,
+    loading,
+    deleteSupplier,
+    getSupplierStats,
+    fetchSuppliers,
+  } = useSupplier();
+  const { branches } = useBranch();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [branchFilter, setBranchFilter] = useState<string>("all");
   const [stats, setStats] = useState({
     totalSuppliers: 0,
     activeSuppliers: 0,
@@ -48,9 +57,22 @@ export default function SuppliersPage() {
   });
 
   useEffect(() => {
-    const supplierStats = getSupplierStats();
-    setStats(supplierStats);
-  }, [suppliers, getSupplierStats]);
+    const filters: { branchId?: string } = {};
+    if (branchFilter !== "all") {
+      filters.branchId = branchFilter;
+    }
+    fetchSuppliers(filters);
+  }, [fetchSuppliers, branchFilter]);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      const supplierStats = await getSupplierStats();
+      if (supplierStats) {
+        setStats(supplierStats);
+      }
+    };
+    fetchStats();
+  }, [getSupplierStats]);
 
   const filteredSuppliers = suppliers.filter((supplier) => {
     const matchesSearch =
@@ -95,7 +117,7 @@ export default function SuppliersPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
       </div>
     );
   }
@@ -110,12 +132,26 @@ export default function SuppliersPage() {
             Manage your supplier relationships and payments
           </p>
         </div>
-        <Link href="/suppliers/add">
-          <Button className="bg-primary hover:bg-primary/90">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Supplier
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/suppliers/reports">
+            <Button variant="outline">
+              <BarChart3 className="w-4 h-4 mr-2" />
+              View Reports
+            </Button>
+          </Link>
+          <Link href="/suppliers/bulk">
+            <Button variant="outline">
+              <Users className="w-4 h-4 mr-2" />
+              Bulk Add
+            </Button>
+          </Link>
+          <Link href="/suppliers/add">
+            <Button className="bg-primary hover:bg-primary/90">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Supplier
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -227,6 +263,20 @@ export default function SuppliersPage() {
               </SelectContent>
             </Select>
 
+            <Select value={branchFilter} onValueChange={setBranchFilter}>
+              <SelectTrigger className="w-full md:w-48">
+                <SelectValue placeholder="Filter by branch" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Branches</SelectItem>
+                {branches.map((branch) => (
+                  <SelectItem key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <Button variant="outline">
               <Filter className="w-4 h-4 mr-2" />
               More Filters
@@ -317,7 +367,11 @@ export default function SuppliersPage() {
                     <div className="text-right">
                       <p className="text-xs text-gray-500">Last Order</p>
                       <p className="text-sm font-semibold text-gray-900">
-                        {new Date(supplier.lastOrderDate).toLocaleDateString()}
+                        {supplier.lastOrderDate
+                          ? new Date(
+                              supplier.lastOrderDate
+                            ).toLocaleDateString()
+                          : "-"}
                       </p>
                     </div>
                   </div>
@@ -331,6 +385,18 @@ export default function SuppliersPage() {
                       className="w-full bg-transparent"
                     >
                       View Details
+                    </Button>
+                  </Link>
+                  <Link
+                    href={`/suppliers/orders/add?supplierId=${supplier.id}`}
+                    className="flex-1"
+                  >
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full bg-transparent"
+                    >
+                      Add Order
                     </Button>
                   </Link>
                   <Link href={`/suppliers/${supplier.id}/payment`}>

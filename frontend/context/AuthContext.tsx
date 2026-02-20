@@ -8,9 +8,12 @@ import {
   useEffect,
   ReactNode,
   useCallback,
+  useMemo,
+  useRef,
 } from "react";
 import { httpClient } from "@/src/data/api/httpClient";
 import { toast } from "@/components/ui/use-toast"; // Using shadcn/ui toast for notifications
+import { SubscriptionPlan } from "@/src/types/subscription";
 
 interface User {
   id: string;
@@ -24,6 +27,7 @@ interface User {
     status: "active" | "expired" | "cancelled" | "pending";
     startDate: string;
     endDate: string;
+    plan: SubscriptionPlan;
     // ... other subscription fields
   };
   branch?: {
@@ -40,24 +44,25 @@ interface User {
   subscriptionId: string;
 }
 
+type SubscriptionStatus = "active" | "expired" | "pending" | "none";
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   authError: string | null;
+  subscriptionStatus: SubscriptionStatus;
   currentBranchId: string | null;
   currentBusinessId: string | null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   businessData: any | null;
   setCurrentBranchId: (branchId: string | null) => void;
   register: (userData: {
-    firstName: string;
+    firstName:string;
     lastName: string;
     email: string;
     phone: string;
     pin: string;
     password: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    businessType?: string;
   }) => Promise<{ success: boolean; message?: string }>;
   login: (
     credentials:
@@ -111,7 +116,6 @@ const getLocalStorageItem = (key: string) => {
 };
 
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const setLocalStorageItem = async (key: string, value: any) => {
   if (typeof window !== "undefined") {
     localStorage.setItem(key, JSON.stringify(value));
@@ -146,90 +150,73 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [currentBusinessId, setCurrentBusinessId] = useState<string | null>(
     null
   );
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [subscriptionStatus, setSubscriptionStatus] =
+    useState<SubscriptionStatus>("none");
   const [businessData, setBusinessData] = useState<any | null>(null);
+  const authCheckInProgress = useRef(false);
 
   // Check authentication status on initial load
   // useEffect(() => {
   //   checkAuth();
   // }, []);
   // In AuthProvider.tsx
-  useEffect(() => {
-    const initAuth = async () => {
-      await checkAuth();
-    };
-    initAuth();
-  }, []); // Empty dependency array to run only once on mount
-
-  const checkSubscriptionValidity = (
-    user: User
-  ): {
-    isValid: boolean;
-    status: "active" | "expired" | "pending" | "none";
-  } => {
-    if (!user.currentSubscription) {
-      return { isValid: false, status: "none" };
-    }
+  const getSubscriptionState = (user: User | null): SubscriptionStatus => {
+    if (!user?.currentSubscription) return "none";
 
     const { status, endDate } = user.currentSubscription;
-
-    if (status === "pending") {
-      return { isValid: false, status: "pending" };
+    if (status === "pending") return "pending";
+    if (status === "active" && endDate && new Date(endDate) > new Date()) {
+      return "active";
     }
-
-    if (status === "active" && endDate) {
-      const isActive = new Date(endDate) > new Date();
-      return {
-        isValid: isActive,
-        status: isActive ? "active" : "expired",
-      };
-    }
-
-    return { isValid: false, status: "expired" };
+    return "expired";
   };
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
+    // Prevent multiple simultaneous auth checks
+    if (authCheckInProgress.current) {
+      return;
+    }
+    
     try {
+      authCheckInProgress.current = true;
       setIsLoading(true);
       const token = await getLocalStorageItem("authToken");
       const userData = await getLocalStorageItem("userData");
-      const branchId = await getLocalStorageItem("currentBranchId");
-      const businessId = await getLocalStorageItem("currentBusinessId");
-      const bizData = await getLocalStorageItem("businessData");
 
       if (token && userData) {
-        const parsedUser = userData;
-        const subscriptionValid = checkSubscriptionValidity(parsedUser);
+        const branchId = await getLocalStorageItem("currentBranchId");
+        const businessId = await getLocalStorageItem("currentBusinessId");
+        const bizData = await getLocalStorageItem("businessData");
 
-        if (subscriptionValid.isValid) {
-          setUser(parsedUser);
-          setIsAuthenticated(true);
-          setCurrentBranchId(branchId || parsedUser.branch?.id || null);
-          setCurrentBusinessId(
-            businessId || parsedUser.branch?.business?.id || null
-          );
-          setBusinessData(bizData || parsedUser.branch?.business || null);
-        } else {
-          // Subscription invalid - log user out
-          await clearAuthData();
-          toast({
-            title: "Session Expired",
-            description: "Your subscription has expired or is invalid",
-            variant: "destructive",
-          });
-        }
+        setUser(userData);
+        setIsAuthenticated(true);
+        setCurrentBranchId(branchId || userData.branch?.id || null);
+        setCurrentBusinessId(
+          businessId || userData.branch?.business?.id || null
+        );
+        setBusinessData(bizData || userData.branch?.business || null);
+        const subStatus = getSubscriptionState(userData);
+        setSubscriptionStatus(subStatus);
       } else {
         await clearAuthData();
+        setUser(null);
+        setIsAuthenticated(false);
+        setSubscriptionStatus("none");
       }
     } catch (error) {
       console.error("Auth check error:", error);
       await clearAuthData();
     } finally {
       setIsLoading(false);
+      authCheckInProgress.current = false;
     }
-  };
+  }, []);
 
-  const login = async (
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  const login = useCallback(async (
     credentials:
       | { phone: string; pin: string }
       | { email: string; password: string }
@@ -279,6 +266,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setBusinessData(businessData || null);
         setIsAuthenticated(true);
 
+        const subStatus = getSubscriptionState(response.user);
+        setSubscriptionStatus(subStatus);
+
         toast({
           title: "Login Successful",
           description: "You have been logged in successfully",
@@ -306,13 +296,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   const getAuthHeaders = useCallback(async () => {
     const token = await getLocalStorageItem("authToken");
-        if (!token) {
+    if (!token) {
       // Redirect to login if no token exists
-      window.location.href = '/auth/login';
+      // window.location.href = '/auth/login';
       throw new Error("No authentication token available");
     }
     return {
@@ -346,7 +336,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     throw error;
   }
 };
-const refreshUser = async () => {
+const refreshUser = useCallback(async () => {
     try {
       setIsLoading(true);
       const headers = await getAuthHeaders();
@@ -358,6 +348,8 @@ const refreshUser = async () => {
       if (response.user) {
         await setLocalStorageItem("userData", response.user);
         setUser(response.user);
+        const subStatus = getSubscriptionState(response.user);
+        setSubscriptionStatus(subStatus);
         toast({
           title: "Success",
           description: "User data refreshed",
@@ -373,14 +365,15 @@ const refreshUser = async () => {
     } finally {
       setIsLoading(false);
     }
-  };
-  const register = async (userData: {
+  }, [getAuthHeaders]);
+  const register = useCallback(async (userData: {
     firstName: string;
     lastName: string;
     email: string;
     phone: string;
     pin: string;
     password: string;
+    businessType?: string;
   }) => {
     try {
       setIsLoading(true);
@@ -421,9 +414,9 @@ const refreshUser = async () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const verifyOTP = async (phone: string, otp: string) => {
+  const verifyOTP = useCallback(async (phone: string, otp: string) => {
     try {
       setIsLoading(true);
       setAuthError(null);
@@ -467,9 +460,9 @@ const refreshUser = async () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const resendOTP = async (phone: string) => {
+  const resendOTP = useCallback(async (phone: string) => {
     try {
       setIsLoading(true);
       setAuthError(null);
@@ -509,9 +502,9 @@ const refreshUser = async () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const setupPIN = async (userId: string, pin: string) => {
+  const setupPIN = useCallback(async (userId: string, pin: string) => {
     try {
       setIsLoading(true);
       setAuthError(null);
@@ -556,9 +549,9 @@ const refreshUser = async () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
 
-  const verifyPIN = async (userId: string, pin: string) => {
+  const verifyPIN = useCallback(async (userId: string, pin: string) => {
     try {
       setIsLoading(true);
       setAuthError(null);
@@ -594,9 +587,9 @@ const refreshUser = async () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       setIsLoading(true);
       const token = await getLocalStorageItem("authToken");
@@ -634,28 +627,51 @@ const refreshUser = async () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const value: AuthContextType = {
-    user,
-    isLoading,
-    isAuthenticated,
-    authError,
-    currentBranchId,
-    currentBusinessId,
-    businessData,
-    setCurrentBranchId,
-    register,
-    login,
-    verifyOTP,
-    resendOTP,
-    setupPIN,
-    verifyPIN,
-    logout,
-    refreshUser,
-    checkAuth,
-    getAuthHeaders,
-  };
+  const value = useMemo(
+    () => ({
+      user,
+      isLoading,
+      isAuthenticated,
+      authError,
+      subscriptionStatus,
+      currentBranchId,
+      currentBusinessId,
+      businessData,
+      setCurrentBranchId,
+      register,
+      login,
+      verifyOTP,
+      resendOTP,
+      setupPIN,
+      verifyPIN,
+      logout,
+      refreshUser,
+      checkAuth,
+      getAuthHeaders,
+    }),
+    [
+      user,
+      isLoading,
+      isAuthenticated,
+      authError,
+      subscriptionStatus,
+      currentBranchId,
+      currentBusinessId,
+      businessData,
+      register,
+      login,
+      verifyOTP,
+      resendOTP,
+      setupPIN,
+      verifyPIN,
+      logout,
+      refreshUser,
+      checkAuth,
+      getAuthHeaders,
+    ]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

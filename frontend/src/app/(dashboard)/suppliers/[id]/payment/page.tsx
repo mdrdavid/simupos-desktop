@@ -32,11 +32,13 @@ import Link from "next/link";
 export default function SupplierPaymentPage() {
   const params = useParams();
   const router = useRouter();
-  const { getSupplierById, recordPayment } = useSupplier();
+  const { getSupplierById, getSupplierOrders, recordPayment } = useSupplier();
   const [supplier, setSupplier] = useState<any>(null);
+  const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
+    orderId: "",
     amount: "",
     paymentMethod: "",
     reference: "",
@@ -47,13 +49,17 @@ export default function SupplierPaymentPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    const loadSupplier = async () => {
+    const loadData = async () => {
       try {
         const supplierId = params.id as string;
-        const supplierData = await getSupplierById(supplierId);
+        const [supplierData, ordersData] = await Promise.all([
+          getSupplierById(supplierId),
+          getSupplierOrders(supplierId),
+        ]);
         setSupplier(supplierData);
+        setOrders(ordersData.filter((o) => o.paymentStatus !== "paid"));
 
-        // Pre-fill amount with outstanding balance
+        // Pre-fill amount with outstanding balance if no specific order is selected
         if (
           supplierData?.outstandingBalance &&
           supplierData.outstandingBalance > 0
@@ -64,18 +70,21 @@ export default function SupplierPaymentPage() {
           }));
         }
       } catch (error) {
-        console.error("Error loading supplier:", error);
+        console.error("Error loading data:", error);
         router.push("/suppliers");
       } finally {
         setLoading(false);
       }
     };
 
-    loadSupplier();
-  }, [params.id, getSupplierById, router]);
-
+    loadData();
+  }, [params.id, getSupplierById, getSupplierOrders, router]);
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+
+    if (!formData.orderId) {
+      newErrors.orderId = "Please select an order to pay for";
+    }
 
     if (!formData.amount.trim()) {
       newErrors.amount = "Payment amount is required";
@@ -132,16 +141,24 @@ export default function SupplierPaymentPage() {
   };
 
   const formatCurrency = (amount: number) => {
+    // Handle cases where amount is not a valid number
+    if (isNaN(amount) || amount === null || amount === undefined) {
+      return new Intl.NumberFormat("en-UG", {
+        style: "currency",
+        currency: "UGX",
+      }).format(0);
+    }
+
     return new Intl.NumberFormat("en-UG", {
       style: "currency",
       currency: "UGX",
-    }).format(amount || 0);
+    }).format(amount);
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
       </div>
     );
   }
@@ -223,6 +240,45 @@ export default function SupplierPaymentPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="order">Select Order *</Label>
+              {orders.length > 0 ? (
+                <Select
+                  value={formData.orderId}
+                  onValueChange={(value) => {
+                    const selectedOrder = orders.find((o) => o.id === value);
+                    if (selectedOrder) {
+                      const remainingBalance =
+                        selectedOrder.totalAmount - selectedOrder.amountPaid;
+                      handleInputChange("orderId", value);
+                      handleInputChange("amount", remainingBalance.toString());
+                    }
+                  }}
+                >
+                  <SelectTrigger
+                    className={errors.orderId ? "border-red-500" : ""}
+                  >
+                    <SelectValue placeholder="Select an order to pay" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {orders.map((order) => (
+                      <SelectItem key={order.id} value={order.id}>
+                        Order #{order.orderNumber} - Balance:{" "}
+                        {formatCurrency(order.totalAmount - order.amountPaid)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-gray-500">
+                  No unpaid orders available for this supplier.
+                </p>
+              )}
+              {errors.orderId && (
+                <p className="text-sm text-red-500 mt-1">{errors.orderId}</p>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="amount">Payment Amount (UGX) *</Label>

@@ -3,7 +3,9 @@
 import { useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { BarChart3, DollarSign, Package, Users, AlertCircle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { BarChart3, DollarSign, Package, Users, AlertCircle, FileText, ChevronRight } from "lucide-react"
+import Link from "next/link"
 import { useWelding } from "@/context/WeldingContext"
 import { useWeldingFinancials } from "@/context/WeldingFinancialContext"
 import type { WeldingJobStatus } from "@/src/types/welding"
@@ -25,15 +27,18 @@ export default function WeldingReportsPage() {
 
     // Financial calculations
     const totalIncome = invoices
-      .filter((inv) => inv.paymentStatus === InvoicePaymentStatus.PAID)
-      .reduce((sum, inv) => sum + inv.totalAmount, 0)
+      .reduce((sum, inv) => sum + (Number(inv.amountPaid) || 0), 0)
 
     const totalReceivables = invoices
-   .filter((inv) => inv.paymentStatus === InvoicePaymentStatus.PAID)
-      .reduce((sum, inv) => sum + inv.balanceDue, 0)
+      .filter(
+        (inv) =>
+          inv.paymentStatus === InvoicePaymentStatus.UNPAID ||
+          inv.paymentStatus === InvoicePaymentStatus.PARTIALLY_PAID
+      )
+      .reduce((sum, inv) => sum + (Number(inv.balanceDue) || 0), 0);
 
     const totalExpenses = weldingJobs.reduce(
-      (sum, job) => sum + (job.expenses?.reduce((expSum, exp) => expSum + exp.amount, 0) || 0),
+      (sum, job) => sum + (job.expenses?.reduce((expSum, exp) => expSum + (Number(exp.amount) || 0), 0) || 0),
       0,
     )
 
@@ -63,17 +68,17 @@ export default function WeldingReportsPage() {
 
   const getStatusColor = (status: WeldingJobStatus) => {
     switch (status) {
-      case "PENDING":
+      case "Pending":
         return "bg-orange-100 text-orange-800"
-      case "QUOTED":
+      case "Quoted":
         return "bg-blue-100 text-blue-800"
-      case "APPROVED":
+      case "Approved":
         return "bg-green-100 text-green-800"
-      case "IN_PROGRESS":
+      case "In Progress":
         return "bg-yellow-100 text-yellow-800"
-      case "COMPLETED":
+      case "Completed":
         return "bg-emerald-100 text-emerald-800"
-      case "DELIVERED":
+      case "Delivered":
         return "bg-gray-100 text-gray-800"
       default:
         return "bg-gray-100 text-gray-800"
@@ -139,36 +144,70 @@ export default function WeldingReportsPage() {
       </div>
 
       {/* Financial Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <DollarSign className="w-5 h-5" />
-            Financial Summary
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="text-center">
-              <p className="text-sm text-gray-600 mb-2">Total Income</p>
-              <p className="text-2xl font-bold text-green-600">UGX {reportsData.totalIncome.toLocaleString()}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5" />
+              Financial Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                  <p className="text-sm text-green-700 font-medium">Total Income</p>
+                  <p className="text-lg font-bold text-green-600">UGX {reportsData.totalIncome.toLocaleString()}</p>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
+                  <p className="text-sm text-orange-700 font-medium">Outstanding Receivables</p>
+                  <p className="text-lg font-bold text-orange-600">UGX {reportsData.totalReceivables.toLocaleString()}</p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
+                  <p className="text-sm text-red-700 font-medium">Total Expenses</p>
+                  <p className="text-lg font-bold text-red-600">UGX {reportsData.totalExpenses.toLocaleString()}</p>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-700 font-medium">Net Profit</p>
+                  <p className={`text-lg font-bold ${reportsData.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    UGX {reportsData.profit.toLocaleString()}
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="text-center">
-              <p className="text-sm text-gray-600 mb-2">Outstanding Receivables</p>
-              <p className="text-2xl font-bold text-orange-600">UGX {reportsData.totalReceivables.toLocaleString()}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-white">
+              <FileText className="w-5 h-5" />
+              Accounting
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-orange-50 text-sm">
+              Generate detailed statements for your clients to track balances and payments.
+            </p>
+            <div className="space-y-2">
+              <Link href="/professional-hub/reports/statement">
+                <Button className="w-full bg-white text-orange-600 hover:bg-orange-50">
+                  Statement of Account
+                  <ChevronRight className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
+              <Link href="/professional-hub/reports/income-status">
+                <Button className="w-full bg-orange-700 text-white hover:bg-orange-800 border-none">
+                  Income Status Report
+                  <ChevronRight className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
             </div>
-            <div className="text-center">
-              <p className="text-sm text-gray-600 mb-2">Total Expenses</p>
-              <p className="text-2xl font-bold text-red-600">UGX {reportsData.totalExpenses.toLocaleString()}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm text-gray-600 mb-2">Net Profit</p>
-              <p className={`text-2xl font-bold ${reportsData.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
-                UGX {reportsData.profit.toLocaleString()}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Jobs by Status */}
@@ -205,7 +244,7 @@ export default function WeldingReportsPage() {
                   </div>
                   <div className="text-right">
                     <Badge className={getStatusColor(job.status)}>{job.status}</Badge>
-                    <p className="text-sm text-gray-600 mt-1">UGX {job.estimatedCost.toLocaleString()}</p>
+                    <p className="text-sm text-gray-600 mt-1">UGX {Number(job.estimatedCost).toLocaleString()}</p>
                   </div>
                 </div>
               ))}

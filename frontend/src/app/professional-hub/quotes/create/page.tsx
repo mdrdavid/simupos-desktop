@@ -18,6 +18,7 @@ import { useWelding } from "@/context/WeldingContext";
 import { useWeldingFinancials } from "@/context/WeldingFinancialContext";
 import { WeldingJobStatus } from "@/src/types/welding";
 import { toast } from "sonner";
+import { formatNumberWithCommas, parseFormattedNumber } from "@/lib/utils";
 
 interface LineItem {
   id: string;
@@ -27,30 +28,27 @@ interface LineItem {
   total: number;
 }
 
-export default function CreateWeldingInvoicePage() {
+export default function CreateWeldingQuotePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const jobId = searchParams.get("jobId");
-  const quoteId = searchParams.get("quoteId");
 
   const { getWeldingJobById, updateWeldingJob } = useWelding();
-  const { createInvoiceFromQuote, createStandaloneInvoice, getQuoteById } =
-    useWeldingFinancials();
+  const { createQuote, getQuoteById } = useWeldingFinancials();
 
   const [job, setJob] = useState<any>(null);
-  const [sourceQuote, setSourceQuote] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // Form state
   const [customerName, setCustomerName] = useState("");
   const [customerContact, setCustomerContact] = useState("");
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [formattedLineItems, setFormattedLineItems] = useState<{ [key: string]: { quantity: string; unitPrice: string } }>({});
   const [notes, setNotes] = useState("");
   const [issueDate, setIssueDate] = useState(
     new Date().toISOString().split("T")[0]
   );
-  const [dueDate, setDueDate] = useState("");
-  const [includeTax, setIncludeTax] = useState(true);
+  const [validUntilDate, setValidUntilDate] = useState("");
 
   useEffect(() => {
     if (jobId) {
@@ -63,32 +61,22 @@ export default function CreateWeldingInvoicePage() {
         // Set default due date (30 days from now)
         const defaultDueDate = new Date();
         defaultDueDate.setDate(defaultDueDate.getDate() + 30);
-        setDueDate(defaultDueDate.toISOString().split("T")[0]);
+        setValidUntilDate(defaultDueDate.toISOString().split("T")[0]);
 
-        if (quoteId) {
-          // Load from quote
-          const quote = getQuoteById(quoteId);
-          if (quote) {
-            setSourceQuote(quote);
-            setLineItems([...quote.lineItems]);
-            setNotes(quote.notes || "");
-          }
-        } else {
-          // Initialize with job-based line items
-          const initialItems: LineItem[] = [
-            {
-              id: `service-${Date.now()}`,
-              description: `Invoice for: ${jobData.jobType} - ${jobData.description.substring(0, 50)}...`,
-              quantity: 1,
-              unitPrice: jobData.estimatedCost,
-              total: jobData.estimatedCost,
-            },
-          ];
-          setLineItems(initialItems);
-        }
+        // Initialize with job-based line items
+        const initialItems: LineItem[] = [
+          {
+            id: `service-${Date.now()}`,
+            description: `Quote for: ${jobData.jobType} - ${jobData.description.substring(0, 50)}...`,
+            quantity: 1,
+            unitPrice: jobData.estimatedCost,
+            total: jobData.estimatedCost,
+          },
+        ];
+        setLineItems(initialItems);
       }
     }
-  }, [jobId, quoteId, getWeldingJobById, getQuoteById]);
+  }, [jobId, getWeldingJobById, getQuoteById]);
 
   const addLineItem = () => {
     const newItem: LineItem = {
@@ -122,13 +110,40 @@ export default function CreateWeldingInvoicePage() {
     );
   };
 
+  const updateNumericLineItem = (
+    id: string,
+    field: "quantity" | "unitPrice",
+    value: string
+  ) => {
+    const numericValue = parseFormattedNumber(value);
+    const formatted = formatNumberWithCommas(value);
+    
+    setFormattedLineItems(prev => ({
+      ...prev,
+      [id]: { ...prev[id], [field]: formatted }
+    }));
+    
+    setLineItems((items) =>
+      items.map((item) => {
+        if (item.id === id) {
+          const updatedItem = { ...item, [field]: numericValue };
+          updatedItem.total = Number(
+            (updatedItem.quantity * updatedItem.unitPrice).toFixed(2)
+          );
+          return updatedItem;
+        }
+        return item;
+      })
+    );
+  };
+
   const removeLineItem = (id: string) => {
     setLineItems((items) => items.filter((item) => item.id !== id));
   };
 
   const calculateTotals = () => {
     const subTotal = lineItems.reduce((sum, item) => sum + item.total, 0);
-    const taxAmount = includeTax ? subTotal * 0.18 : 0;
+    const taxAmount = subTotal * 0.18;
     const totalAmount = subTotal + taxAmount;
 
     return { subTotal, taxAmount, totalAmount };
@@ -160,39 +175,28 @@ export default function CreateWeldingInvoicePage() {
 
     setIsLoading(true);
     try {
-      const issueDateObj = new Date(issueDate);
-      const dueDateObj = dueDate ? new Date(dueDate) : undefined;
+      const validUntilDateObj = validUntilDate
+        ? new Date(validUntilDate)
+        : undefined;
 
-      let newInvoice;
-      if (sourceQuote) {
-        newInvoice = await createInvoiceFromQuote(
-          sourceQuote,
-          issueDateObj,
-          dueDateObj,
-          includeTax
-        );
-      } else {
-        newInvoice = await createStandaloneInvoice(
-          job,
-          lineItems,
-          issueDateObj,
-          dueDateObj,
-          notes,
-          includeTax
-        );
-      }
+      const newQuote = await createQuote(
+        job,
+        lineItems,
+        notes,
+        validUntilDateObj
+      );
 
-      if (newInvoice) {
+      if (newQuote) {
         await updateWeldingJob(job.id, {
-          activeInvoiceId: newInvoice.id,
-          status: WeldingJobStatus.PENDING,
+          activeQuoteId: newQuote.id,
+          status: WeldingJobStatus.QUOTED,
         });
 
-        router.push(`/welding/invoices/${newInvoice.id}`);
+        router.push(`/professional-hub/quotes/${newQuote.id}`);
       }
     } catch (error) {
-      console.error("Failed to create invoice:", error);
-      toast.error("Failed to create invoice");
+      console.error("Failed to create quote:", error);
+      toast.error("Failed to create quote");
     } finally {
       setIsLoading(false);
     }
@@ -212,16 +216,15 @@ export default function CreateWeldingInvoicePage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link href={`/welding/jobs/${job.id}`}>
+        <Link href={`/professional-hub/jobs/${job.id}`}>
           <Button variant="outline" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold">Create Invoice</h1>
+          <h1 className="text-2xl font-bold">Create Quote</h1>
           <p className="text-muted-foreground">
             For Job: {job.jobType} - {job.description.substring(0, 50)}...
-            {sourceQuote && ` • From Quote: ${sourceQuote.quoteNumber}`}
           </p>
         </div>
       </div>
@@ -240,7 +243,6 @@ export default function CreateWeldingInvoicePage() {
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 required
-                disabled={!!sourceQuote}
               />
             </div>
             <div>
@@ -251,7 +253,6 @@ export default function CreateWeldingInvoicePage() {
                 onChange={(e) => setCustomerContact(e.target.value)}
                 placeholder="Phone or email"
                 required
-                disabled={!!sourceQuote}
               />
             </div>
           </CardContent>
@@ -262,12 +263,10 @@ export default function CreateWeldingInvoicePage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Line Items</CardTitle>
-              {!sourceQuote && (
-                <Button type="button" variant="outline" onClick={addLineItem}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Item
-                </Button>
-              )}
+              <Button type="button" variant="outline" onClick={addLineItem}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Item
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -286,41 +285,36 @@ export default function CreateWeldingInvoicePage() {
                       }
                       placeholder="Service or material description"
                       rows={2}
-                      disabled={!!sourceQuote}
                     />
                   </div>
                   <div className="col-span-2">
                     <Label>Quantity</Label>
                     <Input
-                      type="number"
-                      value={item.quantity}
+                      type="text"
+                      value={formattedLineItems[item.id]?.quantity || item.quantity.toString()}
                       onChange={(e) =>
-                        updateLineItem(
+                        updateNumericLineItem(
                           item.id,
                           "quantity",
-                          Number(e.target.value)
+                          e.target.value
                         )
                       }
-                      min="0"
-                      step="0.01"
-                      disabled={!!sourceQuote}
                     />
                   </div>
                   <div className="col-span-2">
                     <Label>Unit Price</Label>
                     <Input
-                      type="number"
-                      value={item.unitPrice}
+                      type="text"
+                      value={formattedLineItems[item.id]?.unitPrice || item.unitPrice.toString()}
                       onChange={(e) =>
-                        updateLineItem(
+                        updateNumericLineItem(
                           item.id,
                           "unitPrice",
-                          Number(e.target.value)
+                          e.target.value
                         )
                       }
                       min="0"
                       step="0.01"
-                      disabled={!!sourceQuote}
                     />
                   </div>
                   <div className="col-span-2">
@@ -329,30 +323,18 @@ export default function CreateWeldingInvoicePage() {
                       UGX {item.total.toLocaleString()}
                     </div>
                   </div>
-                  {!sourceQuote && (
-                    <div className="col-span-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() => removeLineItem(item.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
+                  <div className="col-span-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => removeLineItem(item.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
-            </div>
-
-            {/* Tax Toggle */}
-            <div className="flex items-center space-x-2 mt-4">
-              <Checkbox
-                id="includeTax"
-                checked={includeTax}
-                onCheckedChange={(checked) => setIncludeTax(checked as boolean)}
-              />
-              <Label htmlFor="includeTax">Include Tax (18%)</Label>
             </div>
 
             {/* Totals */}
@@ -362,12 +344,10 @@ export default function CreateWeldingInvoicePage() {
                   <span>Subtotal:</span>
                   <span>UGX {subTotal.toLocaleString()}</span>
                 </div>
-                {includeTax && (
-                  <div className="flex justify-between">
-                    <span>Tax (18%):</span>
-                    <span>UGX {taxAmount.toLocaleString()}</span>
-                  </div>
-                )}
+                <div className="flex justify-between">
+                  <span>Tax (18%):</span>
+                  <span>UGX {taxAmount.toLocaleString()}</span>
+                </div>
                 <div className="flex justify-between font-semibold text-lg border-t pt-2">
                   <span>Total:</span>
                   <span>UGX {totalAmount.toLocaleString()}</span>
@@ -377,10 +357,10 @@ export default function CreateWeldingInvoicePage() {
           </CardContent>
         </Card>
 
-        {/* Invoice Details */}
+        {/* Quote Details */}
         <Card>
           <CardHeader>
-            <CardTitle>Invoice Details</CardTitle>
+            <CardTitle>Quote Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -395,23 +375,23 @@ export default function CreateWeldingInvoicePage() {
                 />
               </div>
               <div>
-                <Label htmlFor="dueDate">Due Date (Optional)</Label>
+                <Label htmlFor="validUntilDate">Valid Until (Optional)</Label>
                 <Input
-                  id="dueDate"
+                  id="validUntilDate"
                   type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
+                  value={validUntilDate}
+                  onChange={(e) => setValidUntilDate(e.target.value)}
                   min={issueDate}
                 />
               </div>
             </div>
             <div>
-              <Label htmlFor="notes">Notes / Payment Terms</Label>
+              <Label htmlFor="notes">Notes / Terms</Label>
               <Textarea
                 id="notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Bank details, thank you message, etc."
+                placeholder="Validity, payment terms, etc."
                 rows={3}
               />
             </div>
@@ -420,13 +400,13 @@ export default function CreateWeldingInvoicePage() {
 
         {/* Submit */}
         <div className="flex justify-end gap-4">
-          <Link href={`/welding/jobs/${job.id}`}>
+          <Link href={`/professional-hub/jobs/${job.id}`}>
             <Button type="button" variant="outline">
               Cancel
             </Button>
           </Link>
           <Button type="submit" disabled={isLoading}>
-            {isLoading ? "Creating..." : "Create Invoice"}
+            {isLoading ? "Creating..." : "Create Quote"}
           </Button>
         </div>
       </form>

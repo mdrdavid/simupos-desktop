@@ -90,3 +90,10 @@ export const hasPermission = (
     );
   }
 };
+
+export function formatCurrency(amount: number | undefined | null) {
+  if (amount == null || isNaN(amount)) {
+    return "UGX ---";
+  }
+  return `UGX ${amount.toLocaleString()}`;
+}

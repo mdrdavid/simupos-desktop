@@ -1,6 +1,12 @@
 export const httpClient = async (url: string, options?: RequestInit) => {
+  const baseUrl = process.env.NEXT_PUBLIC_BACKEND_API;
+
+  if (!baseUrl && typeof window !== 'undefined') {
+    console.error("NEXT_PUBLIC_BACKEND_API is not defined. Please check your environment variables.");
+  }
+
   const response = await fetch(
-    `${process.env.NEXT_PUBLIC_BACKEND_API}${url}`,
+    `${baseUrl || ''}${url}`,
     options,
   );
 
@@ -22,7 +28,11 @@ export const httpClient = async (url: string, options?: RequestInit) => {
     }
 
     case 401:
-      window.location.href = "/auth/login";
+      // Clear auth data and redirect to login
+      if (typeof window !== 'undefined') {
+        localStorage.clear();
+        window.location.href = "/auth/login";
+      }
       return null;
 
     case 403: {

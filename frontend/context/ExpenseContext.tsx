@@ -1,9 +1,10 @@
 "use client";
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from "react";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { useAuth } from "./AuthContext";
 import { useBranch } from "./BranchContext";
 import { httpClient } from "@/src/data/api/httpClient";
+import { RecurringExpenseItem } from "@/src/types/recurring-expense-item";
 
 export interface Expense {
   id: string;
@@ -24,21 +25,27 @@ interface ExpenseContextType {
   expenses: Expense[];
   loading: boolean;
   error: string | null;
+  totalExpenses: number;
+  totalPages: number;
+  currentPage: number;
+  recurringExpenseItems: RecurringExpenseItem[];
   addExpense: (
     expense: Omit<Expense, "id" | "createdAt" | "userId">
   ) => Promise<void>;
   updateExpense: (id: string, expense: Partial<Expense>) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
   getExpensesByPeriod: (
-    period: "day" | "week" | "month" | "year"
+    period: "day" | "week" | "month" | "year" | "quarter"
   ) => Promise<Expense[]>;
   getTotalExpenses: (
-    period: "day" | "week" | "month" | "year"
+    period: "day" | "week" | "month" | "year" | "quarter"
   ) => Promise<number>;
   getExpensesByCategory: (
-    period: "day" | "week" | "month" | "year"
+    period: "day" | "week" | "month" | "year" | "quarter"
   ) => Promise<Record<string, number>>;
-  fetchExpenses: () => Promise<void>;
+  fetchExpenses: (page?: number, limit?: number, period?: string, category?: string) => Promise<void>;
+  fetchRecurringExpenseItems: () => Promise<void>;
+  addRecurringExpenseItem: (item: Omit<RecurringExpenseItem, 'id'>) => Promise<RecurringExpenseItem | undefined>;
 }
 
 const ExpenseContext = createContext<ExpenseContextType | undefined>(undefined);
@@ -59,13 +66,19 @@ export const ExpenseProvider: React.FC<ExpenseProviderProps> = ({
   children,
 }) => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [totalExpenses, setTotalExpenses] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [recurringExpenseItems, setRecurringExpenseItems] = useState<RecurringExpenseItem[]>([]);
   const { currentBranch } = useBranch();
   const { currentBranchId, getAuthHeaders } = useAuth();
 
-  const fetchExpenses = async () => {
+  const fetchExpenses = useCallback(async (page = 1, limit = 10, period = "all", category = "all") => {
     if (!currentBranch) {
+      // Branch not ready yet; keep loading to avoid empty-state flash
+      setLoading(true);
       console.log("No current branch selected");
       return;
     }
@@ -75,9 +88,24 @@ export const ExpenseProvider: React.FC<ExpenseProviderProps> = ({
     try {
       const headers = await getAuthHeaders();
 
-      const response = await httpClient(`/expenses/branch/${currentBranchId}`, {
-        headers,
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
       });
+
+      if (period !== "all") {
+        params.append("period", period);
+      }
+      if (category !== "all") {
+        params.append("category", category);
+      }
+
+      const response = await httpClient(
+        `/expenses/branch/${currentBranchId}?${params.toString()}`,
+        {
+          headers,
+        }
+      );
 
       // Handle both possible response structures
       const expensesData =
@@ -87,6 +115,9 @@ export const ExpenseProvider: React.FC<ExpenseProviderProps> = ({
         throw new Error("Invalid expenses data format");
       }
       setExpenses(expensesData);
+      setTotalExpenses(response.totalExpenses || 0);
+      setCurrentPage(response.currentPage || 1);
+      setTotalPages(response.totalPages || 1);
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to fetch expenses";
@@ -95,9 +126,41 @@ export const ExpenseProvider: React.FC<ExpenseProviderProps> = ({
     } finally {
       setLoading(false);
     }
+  }, [currentBranch, currentBranchId, getAuthHeaders]);
+
+  const fetchRecurringExpenseItems = useCallback(async () => {
+    if (!currentBranchId) return;
+    // In a real app, you would fetch this from your API
+    // For now, we'll use mock data
+    const mockItems: RecurringExpenseItem[] = [
+      { id: '1', name: 'Rent', category: 'Rent', defaultAmount: 2000000 },
+      { id: '2', name: 'Salaries', category: 'Staff', defaultAmount: 5000000 },
+      { id: '3', name: 'Electricity', category: 'Utilities', defaultAmount: 250000 },
+    ];
+    setRecurringExpenseItems(mockItems);
+  }, [currentBranchId]);
+
+  const addRecurringExpenseItem = async (item: Omit<RecurringExpenseItem, 'id'>): Promise<RecurringExpenseItem | undefined> => {
+    if (!currentBranchId) return;
+    // In a real app, you would post this to your API
+    const newItem: RecurringExpenseItem = {
+      id: new Date().toISOString(), // mock id
+      ...item,
+    };
+    setRecurringExpenseItems(prev => [...prev, newItem]);
+    return newItem;
   };
 
-  const addExpense = async (
+  // Auto-fetch whenever current branch context becomes available or changes
+  // Ensures data is loaded after page refresh without manual triggers
+  useEffect(() => {
+    if (currentBranchId) {
+      fetchExpenses();
+      fetchRecurringExpenseItems();
+    }
+  }, [currentBranchId, fetchExpenses, fetchRecurringExpenseItems]);
+
+  const addExpense = useCallback(async (
     expense: Omit<Expense, "id" | "createdAt" | "userId">
   ) => {
     if (!currentBranch) return;
@@ -117,14 +180,15 @@ export const ExpenseProvider: React.FC<ExpenseProviderProps> = ({
 
       const newExpense = await response;
       setExpenses((prev) => [newExpense, ...prev]);
+      fetchExpenses(currentPage);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add expense");
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentBranch, currentBranchId, getAuthHeaders, fetchExpenses]);
 
-  const updateExpense = async (
+  const updateExpense = useCallback(async (
     id: string,
     updatedExpense: Partial<Expense>
   ) => {
@@ -142,14 +206,15 @@ export const ExpenseProvider: React.FC<ExpenseProviderProps> = ({
       setExpenses((prev) =>
         prev.map((expense) => (expense.id === id ? data : expense))
       );
+      fetchExpenses(currentPage);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update expense");
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAuthHeaders, fetchExpenses]);
 
-  const deleteExpense = async (id: string) => {
+  const deleteExpense = useCallback(async (id: string) => {
     setLoading(true);
     setError(null);
     try {
@@ -161,15 +226,16 @@ export const ExpenseProvider: React.FC<ExpenseProviderProps> = ({
       });
 
       setExpenses((prev) => prev.filter((expense) => expense.id !== id));
+      fetchExpenses(currentPage);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete expense");
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAuthHeaders, fetchExpenses]);
 
   const getExpensesByPeriod = async (
-    period: "day" | "week" | "month" | "year"
+    period: "day" | "week" | "month" | "year" | "quarter"
   ) => {
     if (!currentBranch) return [];
 
@@ -194,6 +260,9 @@ export const ExpenseProvider: React.FC<ExpenseProviderProps> = ({
         case "year":
           startDate = new Date(now.getFullYear(), 0, 1);
           break;
+        case "quarter":
+            startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+            break;
         default:
           startDate = new Date(0);
       }
@@ -216,7 +285,7 @@ export const ExpenseProvider: React.FC<ExpenseProviderProps> = ({
   };
 
   const getTotalExpenses = async (
-    period: "day" | "week" | "month" | "year"
+    period: "day" | "week" | "month" | "year" | "quarter"
   ): Promise<number> => {
     try {
       const periodExpenses = (await getExpensesByPeriod(period)) || [];
@@ -233,7 +302,7 @@ export const ExpenseProvider: React.FC<ExpenseProviderProps> = ({
   };
 
   const getExpensesByCategory = async (
-    period: "day" | "week" | "month" | "year"
+    period: "day" | "week" | "month" | "year" | "quarter"
   ) => {
     const periodExpenses = await getExpensesByPeriod(period);
     return periodExpenses.reduce(
@@ -259,10 +328,14 @@ export const ExpenseProvider: React.FC<ExpenseProviderProps> = ({
     );
   };
 
-  const value: ExpenseContextType = {
+  const value: ExpenseContextType = useMemo(() => ({
     expenses,
     loading,
     error,
+    totalExpenses,
+    totalPages,
+    currentPage,
+    recurringExpenseItems,
     addExpense,
     updateExpense,
     deleteExpense,
@@ -270,7 +343,25 @@ export const ExpenseProvider: React.FC<ExpenseProviderProps> = ({
     getTotalExpenses,
     getExpensesByCategory,
     fetchExpenses,
-  };
+    fetchRecurringExpenseItems,
+    addRecurringExpenseItem,
+  }), [
+    expenses,
+    loading,
+    error,
+    totalExpenses,
+    totalPages,
+    currentPage,
+    recurringExpenseItems,
+    addExpense,
+    updateExpense,
+    deleteExpense,
+    getExpensesByPeriod,
+    getTotalExpenses,
+    getExpensesByCategory,
+    fetchExpenses,
+    fetchRecurringExpenseItems,
+  ]);
 
   return (
     <ExpenseContext.Provider value={value}>{children}</ExpenseContext.Provider>

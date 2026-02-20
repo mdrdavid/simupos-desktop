@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,24 +10,32 @@ import { Search, Plus, Eye, Edit, Trash2, Filter, Calendar, User, MapPin } from 
 import Link from "next/link"
 import { useWelding } from "@/context/WeldingContext"
 import { WeldingJobStatus } from "@/src/types/welding"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 const getStatusColor = (status: WeldingJobStatus) => {
   switch (status) {
-    case "PENDING":
+    case "Pending":
       return "bg-orange-100 text-orange-800"
-    case "QUOTED":
+    case "Quoted":
       return "bg-blue-100 text-blue-800"
-    case "APPROVED":
+    case "Approved":
       return "bg-green-100 text-green-800"
-    case "IN_PROGRESS":
+    case "In Progress":
       return "bg-yellow-100 text-yellow-800"
-    case "AWAITING_MATERIALS":
+    case "Awaiting Materials":
       return "bg-purple-100 text-purple-800"
-    case "READY_FOR_PAINTING":
+    case "Ready for Painting":
       return "bg-teal-100 text-teal-800"
-    case "COMPLETED":
+    case "Completed":
       return "bg-emerald-100 text-emerald-800"
-    case "DELIVERED":
+    case "Delivered":
       return "bg-gray-100 text-gray-800"
     default:
       return "bg-gray-100 text-gray-800"
@@ -34,9 +43,15 @@ const getStatusColor = (status: WeldingJobStatus) => {
 }
 
 export default function WeldingJobsPage() {
-  const { weldingJobs, deleteWeldingJob } = useWelding()
+  const { weldingJobs, deleteWeldingJob, fetchWeldingJobs, totalJobs, totalPages, currentPage } = useWelding()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+
+  useEffect(() => {
+    fetchWeldingJobs(page, limit, statusFilter);
+  }, [page, limit, statusFilter, fetchWeldingJobs]);
 
   const filteredJobs = weldingJobs.filter((job) => {
     const matchesSearch =
@@ -57,8 +72,8 @@ export default function WeldingJobsPage() {
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Welding Jobs</h1>
-          <p className="text-gray-600 mt-2">Manage all welding work orders</p>
+          <h1 className="text-3xl font-bold text-gray-900">Workshop Jobs</h1>
+          <p className="text-gray-600 mt-2">Manage all workshop work orders</p>
         </div>
         <Link href="/professional-hub/jobs/create">
           <Button className="bg-orange-500 hover:bg-orange-600">
@@ -117,10 +132,10 @@ export default function WeldingJobsPage() {
               <p className="text-gray-600 mb-4">
                 {searchTerm || statusFilter !== "all"
                   ? "Try adjusting your search or filters"
-                  : "Get started by creating your first welding job"}
+                  : "Get started by creating your first job"}
               </p>
               {!searchTerm && statusFilter === "all" && (
-                <Link href="/welding/jobs/create">
+                <Link href="/professional-hub/jobs/create">
                   <Button className="bg-orange-500 hover:bg-orange-600">
                     <Plus className="w-4 h-4 mr-2" />
                     Create First Job
@@ -130,66 +145,97 @@ export default function WeldingJobsPage() {
             </CardContent>
           </Card>
         ) : (
-          filteredJobs.map((job) => (
-            <Card key={job.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
-                      <h3 className="text-lg font-semibold text-gray-900">{job.jobType}</h3>
-                      <Badge className={getStatusColor(job.status)}>{job.status}</Badge>
-                    </div>
+          <>
+            {filteredJobs.map((job) => (
+              <Card key={job.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-3">
+                        <h3 className="text-lg font-semibold text-gray-900">{job.jobType}</h3>
+                        <Badge className={getStatusColor(job.status)}>{job.status}</Badge>
+                      </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                      <div className="flex items-center text-gray-600">
-                        <User className="w-4 h-4 mr-2" />
-                        <span>{job.customerName}</span>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div className="flex items-center text-gray-600">
+                          <User className="w-4 h-4 mr-2" />
+                          <span>{job.customerName}</span>
+                        </div>
+                        <div className="flex items-center text-gray-600">
+                          <MapPin className="w-4 h-4 mr-2" />
+                          <span>{job.customerLocation || "No location"}</span>
+                        </div>
+                        <div className="flex items-center text-gray-600">
+                          <Calendar className="w-4 h-4 mr-2" />
+                          <span>{new Date(job.requiredDeliveryDate).toLocaleDateString()}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center text-gray-600">
-                        <MapPin className="w-4 h-4 mr-2" />
-                        <span>{job.customerLocation || "No location"}</span>
-                      </div>
-                      <div className="flex items-center text-gray-600">
-                        <Calendar className="w-4 h-4 mr-2" />
-                        <span>{new Date(job.requiredDeliveryDate).toLocaleDateString()}</span>
-                      </div>
-                    </div>
 
-                    <p className="text-gray-600 mb-4 line-clamp-2">{job.description}</p>
+                      <p className="text-gray-600 mb-4 line-clamp-2">{job.description}</p>
 
-                    <div className="flex items-center justify-between">
-                      <div className="text-lg font-semibold text-gray-900">
-                        UGX {job.estimatedCost.toLocaleString()}
-                      </div>
-                      <div className="flex gap-2">
-                        <Link href={`/professional-hub/jobs/${job.id}`}>
-                          <Button variant="outline" size="sm">
-                            <Eye className="w-4 h-4 mr-1" />
-                            View
+                      <div className="flex items-center justify-between">
+                        <div className="text-lg font-semibold text-gray-900">
+                          UGX {job.estimatedCost.toLocaleString()}
+                        </div>
+                        <div className="flex gap-2">
+                          <Link href={`/professional-hub/jobs/${job.id}`}>
+                            <Button variant="outline" size="sm">
+                              <Eye className="w-4 h-4 mr-1" />
+                              View
+                            </Button>
+                          </Link>
+                          <Link href={`/professional-hub/jobs/${job.id}/edit`}>
+                            <Button variant="outline" size="sm">
+                              <Edit className="w-4 h-4 mr-1" />
+                              Edit
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDelete(job.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            Delete
                           </Button>
-                        </Link>
-                        <Link href={`/professional-hub/jobs/${job.id}/edit`}>
-                          <Button variant="outline" size="sm">
-                            <Edit className="w-4 h-4 mr-1" />
-                            Edit
-                          </Button>
-                        </Link>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(job.id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="w-4 h-4 mr-1" />
-                          Delete
-                        </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                </CardContent>
+              </Card>
+            ))}
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                  />
+                </PaginationItem>
+                {[...Array(totalPages)].map((_, i) => (
+                  <PaginationItem key={i}>
+                    <PaginationLink
+                      href="#"
+                      isActive={page === i + 1}
+                      onClick={() => setPage(i + 1)}
+                    >
+                      {i + 1}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    onClick={() =>
+                      setPage((prev) => Math.min(prev + 1, totalPages))
+                    }
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </>
         )}
       </div>
     </div>

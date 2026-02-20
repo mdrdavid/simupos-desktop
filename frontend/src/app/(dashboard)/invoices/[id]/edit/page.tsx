@@ -14,6 +14,7 @@ import { Plus, Minus, Save, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { useInvoiceContext } from "@/context/InvoiceContext"
 import type { Invoice, InvoiceItem } from "@/src/types/invoice"
+import { formatNumberWithCommas, parseFormattedNumber } from "@/lib/utils"
 
 export default function EditInvoicePage() {
   const params = useParams()
@@ -35,6 +36,7 @@ export default function EditInvoicePage() {
   })
 
   const [items, setItems] = useState<InvoiceItem[]>([])
+  const [formattedItems, setFormattedItems] = useState<{ [key: string]: { quantity: string; unitPrice: string } }>({})
 
   useEffect(() => {
     const loadInvoice = async () => {
@@ -53,6 +55,15 @@ export default function EditInvoicePage() {
             taxRate: (invoiceData.taxAmount / invoiceData.subtotal) * 100,
           })
           setItems(invoiceData.items)
+          // Initialize formatted values
+          const formatted: { [key: string]: { quantity: string; unitPrice: string } } = {}
+          invoiceData.items.forEach(item => {
+            formatted[item.id] = {
+              quantity: item.quantity.toString(),
+              unitPrice: item.unitPrice.toString()
+            }
+          })
+          setFormattedItems(formatted)
         }
       }
       setLoading(false)
@@ -90,6 +101,27 @@ export default function EditInvoicePage() {
         }
         return item
       }),
+    )
+  }
+
+  const updateNumericItem = (id: string, field: "quantity" | "unitPrice", value: string) => {
+    const numericValue = parseFormattedNumber(value)
+    const formatted = formatNumberWithCommas(value)
+    
+    setFormattedItems(prev => ({
+      ...prev,
+      [id]: { ...prev[id], [field]: formatted }
+    }))
+    
+    setItems(
+      items.map((item) => {
+        if (item.id === id) {
+          const updatedItem = { ...item, [field]: numericValue }
+          updatedItem.total = updatedItem.quantity * updatedItem.unitPrice
+          return updatedItem
+        }
+        return item
+      })
     )
   }
 
@@ -271,19 +303,19 @@ export default function EditInvoicePage() {
                   <div className="col-span-2">
                     <Label>Quantity</Label>
                     <Input
-                      type="number"
-                      value={item.quantity}
-                      onChange={(e) => updateItem(item.id, "quantity", Number(e.target.value))}
-                      min="1"
+                      type="text"
+                      value={formattedItems[item.id]?.quantity || item.quantity.toString()}
+                      onChange={(e) => updateNumericItem(item.id, "quantity", e.target.value)}
+                      placeholder="1"
                     />
                   </div>
                   <div className="col-span-2">
                     <Label>Unit Price</Label>
                     <Input
-                      type="number"
-                      value={item.unitPrice}
-                      onChange={(e) => updateItem(item.id, "unitPrice", Number(e.target.value))}
-                      min="0"
+                      type="text"
+                      value={formattedItems[item.id]?.unitPrice || item.unitPrice.toString()}
+                      onChange={(e) => updateNumericItem(item.id, "unitPrice", e.target.value)}
+                      placeholder="0"
                     />
                   </div>
                   <div className="col-span-2">

@@ -1,7 +1,7 @@
 import type React from "react"
-import { Header } from "@/components/layout/header"
-import { Sidebar } from "@/components/layout/sidebar"
-import { AppFooter } from "@/components/Footer/AppFooter"
+import { Suspense } from "react"
+import DashboardLayoutClient from "./DashboardLayoutClient"
+import { SubscriptionGuard } from "@/components/auth/SubscriptionGuard"
 
 export default function DashboardLayout({
   children,
@@ -9,16 +9,10 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
-      <Sidebar />
-
-      {/* Main content */}
-      <div className="flex-1 flex flex-col lg:ml-64">
-        <Header />
-        <main className="flex-1 overflow-auto">{children}</main>
-        <AppFooter/>
-      </div>
-    </div>
+    <SubscriptionGuard>
+      <Suspense fallback={<div>Loading...</div>}>
+        <DashboardLayoutClient>{children}</DashboardLayoutClient>
+      </Suspense>
+    </SubscriptionGuard>
   )
 }

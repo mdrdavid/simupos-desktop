@@ -20,10 +20,6 @@ export interface AgroSale {
   amountPaid: number; // If partial payment on a credit sale, or full for non-credit
   balanceDue: number; // totalAmount - amountPaid
 
-  isDeliveryPending: boolean;
-  deliveryDate?: string; // Optional: Expected or actual delivery date (ISO string)
-  deliveryAddress?: string; // If different from customer's default
-
   customerDetails?: AgroCustomerDetails; // Required if isCreditSale is true
 
   paymentMethod?:

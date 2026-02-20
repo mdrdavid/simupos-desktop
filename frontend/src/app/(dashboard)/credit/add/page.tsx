@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { useState } from "react";
@@ -17,17 +18,12 @@ import { ArrowLeft, Plus, Trash2, CalendarIcon, Save } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-
-interface OrderItem {
-  tempId: string;
-  itemName: string;
-  quantity: number;
-  price: number;
-}
+import { useCredit } from "@/context/CreditContext";
+import { OrderItem } from "@/src/types/credit";
 
 export default function AddCreditPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const { addCreditEntry, loading } = useCredit();
   const [dueDate, setDueDate] = useState<Date>();
 
   const [formData, setFormData] = useState({
@@ -90,18 +86,21 @@ export default function AddCreditPage() {
     if (!validateItem()) return;
 
     const newItem: OrderItem = {
-      tempId: `item-${Date.now()}`,
+      itemId: `temp-${Date.now()}`,
       itemName: currentItem.name,
       quantity: Number.parseInt(currentItem.quantity, 10),
       price: Number.parseFloat(currentItem.price),
+      total:
+        Number.parseInt(currentItem.quantity, 10) *
+        Number.parseFloat(currentItem.price),
     };
 
     setItems((prev) => [...prev, newItem]);
     setCurrentItem({ name: "", quantity: "", price: "" });
   };
 
-  const handleRemoveItem = (tempId: string) => {
-    setItems((prev) => prev.filter((item) => item.tempId !== tempId));
+  const handleRemoveItem = (itemId: string) => {
+    setItems((prev) => prev.filter((item) => item.itemId !== itemId));
   };
 
   const calculateTotalAmount = () => {
@@ -133,27 +132,15 @@ export default function AddCreditPage() {
   const handleSaveCredit = async () => {
     if (!validateForm()) return;
 
-    setLoading(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      const creditData = {
+      await addCreditEntry({
         customerName: formData.customerName,
         customerPhone: formData.customerPhone,
-        items: items.map((item) => ({
-          itemId: `temp-${item.tempId}`,
-          itemName: item.itemName,
-          quantity: item.quantity,
-          price: item.price,
-          total: item.quantity * item.price,
-        })),
+        items: items,
         dateTaken: new Date().toISOString(),
         dueDate: dueDate?.toISOString(),
         totalAmount: calculateTotalAmount(),
-      };
-
-      console.log("Saving credit:", creditData);
+      });
 
       toast({
         title: "Success",
@@ -161,15 +148,12 @@ export default function AddCreditPage() {
       });
 
       router.push("/credit");
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to save credit entry.",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -262,8 +246,8 @@ export default function AddCreditPage() {
             <CardTitle>Credit Items</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-12 gap-2">
-              <div className="col-span-5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+              <div className="md:col-span-5">
                 <Label htmlFor="itemName">Item Name</Label>
                 <Input
                   id="itemName"
@@ -274,7 +258,7 @@ export default function AddCreditPage() {
                   }
                 />
               </div>
-              <div className="col-span-2">
+              <div className="md:col-span-2">
                 <Label htmlFor="quantity">Quantity</Label>
                 <Input
                   id="quantity"
@@ -286,7 +270,7 @@ export default function AddCreditPage() {
                   }
                 />
               </div>
-              <div className="col-span-3">
+              <div className="md:col-span-3">
                 <Label htmlFor="price">Price (UGX)</Label>
                 <Input
                   id="price"
@@ -298,7 +282,7 @@ export default function AddCreditPage() {
                   }
                 />
               </div>
-              <div className="col-span-2 flex items-end">
+              <div className="flex items-end md:col-span-2">
                 <Button
                   onClick={handleAddItem}
                   disabled={
@@ -325,20 +309,20 @@ export default function AddCreditPage() {
               <div className="space-y-2">
                 {items.map((item) => (
                   <div
-                    key={item.tempId}
+                    key={item.itemId}
                     className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                   >
                     <div className="flex-1">
                       <p className="font-medium">{item.itemName}</p>
                       <p className="text-sm text-muted-foreground">
                         Qty: {item.quantity} × {formatCurrency(item.price)} ={" "}
-                        {formatCurrency(item.quantity * item.price)}
+                        {formatCurrency(item.total)}
                       </p>
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleRemoveItem(item.tempId)}
+                      onClick={() => handleRemoveItem(item.itemId)}
                       className="text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
                       <Trash2 className="h-4 w-4" />

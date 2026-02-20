@@ -18,6 +18,8 @@ import {
   Building,
   HeartPulse,
   Beer,
+  ParkingCircle,
+  CarFront,
 } from "lucide-react";
 
 export const businessCategories = [
@@ -39,7 +41,11 @@ export const businessCategories = [
     title: "Hardware",
     description: "For hardware and building supply stores.",
     icon: Hammer,
-    features: ["Measurement-based selling", "Special Orders", "Vendor management"],
+    features: [
+      "Measurement-based selling",
+      "Special Orders",
+      "Vendor management",
+    ],
     type: "hardware",
   },
   {
@@ -95,11 +101,7 @@ export const businessCategories = [
     title: "Retail",
     description: "For shops, boutiques, and general stores.",
     icon: ShoppingBag,
-    features: [
-      "Inventory Management",
-      "Sales Tracking",
-      "Customer Management",
-    ],
+    features: ["Inventory Management", "Sales Tracking", "Customer Management"],
     type: "retail",
   },
   {
@@ -108,5 +110,45 @@ export const businessCategories = [
     icon: Scissors,
     features: ["Appointment Booking", "Stylist Management", "Service Packages"],
     type: "salon",
+  },
+  {
+    title: "Washing Bay",
+    description: "For car wash and vehicle cleaning services.",
+    icon: Car,
+    features: [
+      "Service Management",
+      "Worker Commissions",
+      "Order Tracking",
+      "Vehicle Type Pricing",
+      "Commission Tracking",
+    ],
+    type: "washingbay",
+  },
+  {
+    title: "Night Parking",
+    description: "For overnight vehicle parking services.",
+    icon: ParkingCircle,
+    features: [
+      "Slot Management",
+      "Time-based Billing",
+      "Vehicle Registration",
+      "Security Features",
+      "Night Shift Reports",
+    ],
+    type: "night_parking",
+  },
+  {
+    title: "Washing Bay & Night Parking",
+    description: "Combined car wash and overnight parking services.",
+    icon: CarFront,
+    features: [
+      "Wash Service Management",
+      "Parking Slot Allocation",
+      "Combined Billing",
+      "Vehicle Tracking",
+      "Dual Service Packages",
+      "Worker Commission for Both Services",
+    ],
+    type: "washingbay_nightparking",
   },
 ];

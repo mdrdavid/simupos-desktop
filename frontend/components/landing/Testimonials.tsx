@@ -58,7 +58,7 @@ export function Testimonials() {
     <section className="py-16 bg-white">
       <div className="container px-4 md:px-6">
         <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Trusted by 500+ Businesses</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Trusted by 50+ Businesses</h2>
           <p className="text-xl text-gray-600">See what our customers say about SimuPOS</p>
         </div>
 

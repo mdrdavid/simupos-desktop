@@ -21,6 +21,7 @@ import {
   Package,
   FileText,
   MoreVertical,
+  Plus,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -83,6 +84,14 @@ export default function SupplierDetailPage() {
   };
 
   const formatCurrency = (amount: number) => {
+    // Handle cases where amount is not a valid number
+    if (isNaN(amount) || amount === null || amount === undefined) {
+      return new Intl.NumberFormat("en-UG", {
+        style: "currency",
+        currency: "UGX",
+      }).format(0);
+    }
+
     return new Intl.NumberFormat("en-UG", {
       style: "currency",
       currency: "UGX",
@@ -100,7 +109,7 @@ export default function SupplierDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
       </div>
     );
   }
@@ -147,8 +156,14 @@ export default function SupplierDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Link href={`/suppliers/${supplier.id}/payment`}>
+          <Link href={`/suppliers/orders/add?supplierId=${supplier.id}`}>
             <Button className="bg-primary hover:bg-primary/90">
+              <Plus className="w-4 h-4 mr-2" />
+              New Order
+            </Button>
+          </Link>
+          <Link href={`/suppliers/${supplier.id}/payment`}>
+            <Button variant="outline">
               <CreditCard className="w-4 h-4 mr-2" />
               Record Payment
             </Button>
@@ -167,12 +182,12 @@ export default function SupplierDetailPage() {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem>
-                <Link href={`/suppliers/reports`}>
+                <Link href={`/suppliers/individual-report`}>
                   <FileText className="w-4 h-4 mr-2" />
                   Generate Report
                 </Link>
               </DropdownMenuItem>
-            </DropdownMenuContent>
+            </DropdownMenuContent> 
           </DropdownMenu>
         </div>
       </div>
@@ -218,7 +233,11 @@ export default function SupplierDetailPage() {
                 <p className="text-sm font-medium text-gray-600">Total Paid</p>
                 <p className="text-2xl font-bold text-green-600">
                   {formatCurrency(
-                    payments.reduce((sum, payment) => sum + payment.amount, 0)
+                    payments.reduce((sum, payment) => {
+                      // Ensure each payment amount is a valid number
+                      const amount = Number(payment.amount) || 0;
+                      return sum + amount;
+                    }, 0)
                   )}
                 </p>
               </div>
@@ -358,13 +377,18 @@ export default function SupplierDetailPage() {
 
         <TabsContent value="orders" className="space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle>Order History</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Recent Orders</CardTitle>
+              <Link href={`/suppliers/${supplier.id}/orders`}>
+                <Button variant="outline" size="sm">
+                  View All
+                </Button>
+              </Link>
             </CardHeader>
             <CardContent>
-              {orders.length > 0 ? (
+              {orders.slice(0, 5).length > 0 ? (
                 <div className="space-y-4">
-                  {orders.map((order) => (
+                  {orders.slice(0, 5).map((order) => (
                     <div
                       key={order.id}
                       className="flex items-center justify-between p-4 border rounded-lg"
@@ -379,7 +403,7 @@ export default function SupplierDetailPage() {
                       </div>
                       <div className="text-right">
                         <p className="font-medium">
-                          {formatCurrency(order.amount)}
+                          {formatCurrency(order.totalAmount)}
                         </p>
                         <Badge
                           className={

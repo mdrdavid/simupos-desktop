@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Card,
@@ -39,6 +40,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   ArrowLeft,
   CalendarIcon,
@@ -55,23 +57,35 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useWelding } from "@/context/WeldingContext";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
+import { DownloadQuoteButton } from "@/components/professional-hub/DownloadQuoteButton";
 import { useWeldingFinancials } from "@/context/WeldingFinancialContext";
 import { QuoteStatus } from "@/src/types/weldingFinancials";
+import { useBusiness } from "@/context/BusinessContext";
+
 
 export default function WeldingQuoteDetailPage() {
   const params = useParams();
   const router = useRouter();
   const quoteId = params.id as string;
 
-  const { getWeldingJobById } = useWelding();
-  const { getQuoteById, updateQuoteStatus, updateQuote, deleteQuote } =
-    useWeldingFinancials();
+  const { weldingJobs, getWeldingJobById } = useWelding();
+  const {
+    quotes,
+    getQuoteById,
+    updateQuoteStatus,
+    updateQuote,
+    deleteQuote,
+  } = useWeldingFinancials();
+  const { currentBusiness } = useBusiness();
 
   const [quote, setQuote] = useState<any>(null);
   const [job, setJob] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [includeTax, setIncludeTax] = useState(true);
 
   // Form state
   const [customerName, setCustomerName] = useState("");
@@ -82,6 +96,47 @@ export default function WeldingQuoteDetailPage() {
   const [validUntil, setValidUntil] = useState<Date | undefined>(undefined);
   const [status, setStatus] = useState<QuoteStatus>(QuoteStatus.DRAFT);
 
+  const printRef = useRef<HTMLDivElement>(null);
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleDownload = async () => {
+    const input = printRef.current;
+    if (!input) {
+      return;
+    }
+
+    const originalStyle = {
+      width: input.style.width,
+    };
+
+    try {
+      // Temporarily apply a fixed width for PDF generation
+      input.style.width = "1200px";
+
+      const canvas = await html2canvas(input, {
+        background: "#ffffff", // Corrected property
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const canvasWidth = canvas.width;
+      const canvasHeight = canvas.height;
+      const ratio = canvasWidth / canvasHeight;
+      const pdfHeight = pdfWidth / ratio;
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`quote-${quote.quoteNumber}.pdf`);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+    } finally {
+      // Restore original styles
+      input.style.width = originalStyle.width;
+    }
+  };
+
   useEffect(() => {
     const quoteData = getQuoteById(quoteId);
     if (quoteData) {
@@ -89,17 +144,23 @@ export default function WeldingQuoteDetailPage() {
       setCustomerName(quoteData.customerDetails.name);
       setCustomerContact(quoteData.customerDetails.contact);
       setCustomerLocation(quoteData.customerDetails.location || "");
-      setLineItems(quoteData.lineItems);
+      setLineItems(quoteData.lineItems || []);
       setNotes(quoteData.notes || "");
       if (quoteData.validUntil) setValidUntil(new Date(quoteData.validUntil));
       setStatus(quoteData.status);
 
-      const jobData = getWeldingJobById(quoteData.weldingJobId);
-      if (jobData) {
-        setJob(jobData);
+      if (quoteData.weldingJobId) {
+        const jobData = getWeldingJobById(quoteData.weldingJobId);
+        if (jobData) {
+          setJob(jobData);
+        }
+      } else {
+        // Standalone quote, no job associated.
+        // Set job to a placeholder to pass the loading check.
+        setJob({});
       }
     }
-  }, [quoteId, getQuoteById, getWeldingJobById]);
+  }, [quoteId, getQuoteById, getWeldingJobById, quotes, weldingJobs]);
 
   const handleStatusChange = async (newStatus: QuoteStatus) => {
     if (status === newStatus) return;
@@ -156,7 +217,7 @@ export default function WeldingQuoteDetailPage() {
     setIsDeleting(true);
     try {
       await deleteQuote(quoteId);
-      router.push(`/welding/jobs/${job.id}`);
+      router.push(`/professional-hub/jobs/${job.id}`);
     } catch (error) {
       console.error("Failed to delete quote:", error);
       alert("Failed to delete quote");
@@ -210,14 +271,14 @@ export default function WeldingQuoteDetailPage() {
   const calculateTotals = () => {
     const subTotal = lineItems.reduce((sum, item) => sum + item.total, 0);
     const taxRate = 0.18;
-    const taxAmount = Math.round(subTotal * taxRate);
+    const taxAmount = includeTax ? Math.round(subTotal * taxRate) : 0;
     const totalAmount = subTotal + taxAmount;
 
     return {
       subTotal,
       taxAmount,
       totalAmount,
-      taxRate,
+      taxRate: includeTax ? taxRate : 0,
     };
   };
 
@@ -250,10 +311,33 @@ export default function WeldingQuoteDetailPage() {
 
   return (
     <div className="space-y-6">
+      {/* Print Styles */}
+      <style jsx global>{`
+        @media print {
+          .no-print {
+            display: none !important;
+          }
+          .printable {
+            background: white !important;
+          }
+          .quote-logo {
+            max-width: 80px !important;
+            max-height: 80px !important;
+            object-fit: contain !important;
+          }
+        }
+      `}</style>
+      
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 no-print">
         <div className="flex items-center gap-4">
-          <Link href={`/welding/jobs/${job.id}`}>
+          <Link
+            href={
+              job?.id
+                ? `/professional-hub/jobs/${job.id}`
+                : "/professional-hub/quotes"
+            }
+          >
             <Button variant="outline" size="icon">
               <ArrowLeft className="h-4 w-4" />
             </Button>
@@ -283,10 +367,19 @@ export default function WeldingQuoteDetailPage() {
                 <Edit className="mr-2 h-4 w-4" />
                 Edit
               </Button>
-              <Button variant="outline" onClick={() => window.print()}>
+              <Button variant="outline" onClick={handlePrint}>
                 <Printer className="mr-2 h-4 w-4" />
                 Print
               </Button>
+              <div className="flex items-center space-x-2 mr-2">
+                <Checkbox
+                  id="include-tax"
+                  checked={includeTax}
+                  onCheckedChange={(checked) => setIncludeTax(Boolean(checked))}
+                />
+                <Label htmlFor="include-tax">Include Tax</Label>
+              </div>
+              <DownloadQuoteButton onClick={handleDownload} />
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive">
@@ -327,31 +420,68 @@ export default function WeldingQuoteDetailPage() {
         </div>
       </div>
 
-      {/* Job Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Job Information</CardTitle>
-          <CardDescription>
-            Details of the associated welding job
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">
-                Job Type
-              </p>
-              <p className="text-lg font-medium">{job.jobType}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">
-                Job ID
-              </p>
-              <p className="text-lg font-medium">{job.id.substring(0, 8)}</p>
-            </div>
+      <div ref={printRef} className="printable">
+        <div className="flex justify-between items-center mb-4 px-2">
+          <h2 className="text-2xl font-bold">Quote</h2>
+          <div className="text-right">
+            <p className="font-semibold">Quote #{quote.quoteNumber}</p>
+            <p className="text-sm text-muted-foreground">
+              Date: {new Date(quote.createdAt).toLocaleDateString()}
+            </p>
+            <p className="text-sm text-muted-foreground">quote status: {status}</p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+        <Card className="mb-6">
+          <CardHeader>
+            {currentBusiness?.logo && (
+              <div className="mb-4 flex justify-start">
+                <img 
+                  src={currentBusiness.logo} 
+                  alt="Business Logo" 
+                  className="max-w-[80px] max-h-[80px] object-contain rounded-lg quote-logo"
+                  onError={(e) => {
+                    // Hide the image if it fails to load
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
+            <CardTitle>{currentBusiness?.name}</CardTitle>
+            <CardDescription>
+              {currentBusiness?.address} <br />
+              {currentBusiness?.email} | {currentBusiness?.phone}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+        {/* Job Info */}
+        {job?.id && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Job Information</CardTitle>
+              <CardDescription>
+                Details of the associated welding job
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Job Type
+                  </p>
+                  <p className="text-lg font-medium">{job.jobType}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Job ID
+                  </p>
+                  <p className="text-lg font-medium">
+                    {job.id.substring(0, 8)}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
       {/* Customer Information */}
       <Card>
@@ -359,37 +489,51 @@ export default function WeldingQuoteDetailPage() {
           <CardTitle>Customer Information</CardTitle>
           <CardDescription>Customer details for this quote</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="customerName">Customer Name</Label>
-              <Input
-                id="customerName"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                disabled={!isEditing}
-              />
+        {isEditing ? (
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="customerName">Customer Name</Label>
+                <Input
+                  id="customerName"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customerContact">Contact</Label>
+                <Input
+                  id="customerContact"
+                  value={customerContact}
+                  onChange={(e) => setCustomerContact(e.target.value)}
+                />
+              </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="customerContact">Contact</Label>
+              <Label htmlFor="customerLocation">Location (Optional)</Label>
               <Input
-                id="customerContact"
-                value={customerContact}
-                onChange={(e) => setCustomerContact(e.target.value)}
-                disabled={!isEditing}
+                id="customerLocation"
+                value={customerLocation}
+                onChange={(e) => setCustomerLocation(e.target.value)}
               />
             </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="customerLocation">Location (Optional)</Label>
-            <Input
-              id="customerLocation"
-              value={customerLocation}
-              onChange={(e) => setCustomerLocation(e.target.value)}
-              disabled={!isEditing}
-            />
-          </div>
-        </CardContent>
+          </CardContent>
+        ) : (
+          <CardContent className="text-base">
+            <div className="flex gap-2">
+              <p className="font-semibold w-32">Customer Name:</p>
+              <p>{customerName}</p>
+            </div>
+            <div className="flex gap-2">
+              <p className="font-semibold w-32">Contact:</p>
+              <p>{customerContact}</p>
+            </div>
+            <div className="flex gap-2">
+              <p className="font-semibold w-32">Location:</p>
+              <p>{customerLocation || "N/A"}</p>
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       {/* Line Items */}
@@ -417,22 +561,93 @@ export default function WeldingQuoteDetailPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Header Row */}
-              <div className="grid grid-cols-12 gap-2 font-medium text-sm text-muted-foreground px-2">
-                <div className="col-span-5">Description</div>
-                <div className="col-span-2 text-center">Quantity</div>
-                <div className="col-span-2 text-right">Unit Price</div>
-                <div className="col-span-2 text-right">Total</div>
-                {isEditing && <div className="col-span-1"></div>}
+              {/* Header Row - visible on md screens and up */}
+              <div className="hidden md:grid md:grid-cols-12 gap-2 font-medium text-sm text-muted-foreground px-2">
+                <div className="md:col-span-5">Description</div>
+                <div className="md:col-span-2 text-center">Quantity</div>
+                <div className="md:col-span-2 text-right">Unit Price</div>
+                <div className="md:col-span-2 text-right">Total</div>
+                {isEditing && <div className="md:col-span-1"></div>}
               </div>
 
               {/* Line Items */}
               {lineItems.map((item) => (
                 <div
                   key={item.id}
-                  className="grid grid-cols-12 gap-2 items-center"
+                  className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center border-b md:border-none pb-4 md:pb-0 mb-4 md:mb-2"
                 >
-                  <div className="col-span-5">
+                  {/* Mobile view */}
+                  <div className="md:hidden col-span-1 grid grid-cols-2 gap-x-4 gap-y-2">
+                    <div className="col-span-2">
+                      {isEditing ? (
+                        <Input
+                          value={item.description}
+                          onChange={(e) =>
+                            handleLineItemUpdate(item.id, {
+                              description: e.target.value,
+                            })
+                          }
+                          placeholder="Item description"
+                          className="font-semibold"
+                        />
+                      ) : (
+                        <p className="font-semibold">{item.description}</p>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-sm text-muted-foreground">Qty</span>
+                      {isEditing ? (
+                        <Input
+                          type="number"
+                          value={item.quantity.toString()}
+                          onChange={(e) =>
+                            handleLineItemUpdate(item.id, {
+                              quantity: Number.parseFloat(e.target.value),
+                            })
+                          }
+                          placeholder="Qty"
+                          className="w-full mt-1"
+                          min="0"
+                        />
+                      ) : (
+                        <p>{item.quantity}</p>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-sm text-muted-foreground">
+                        Unit Price
+                      </span>
+                      {isEditing ? (
+                        <Input
+                          type="number"
+                          value={item.unitPrice.toString()}
+                          onChange={(e) =>
+                            handleLineItemUpdate(item.id, {
+                              unitPrice: Number.parseFloat(e.target.value),
+                            })
+                          }
+                          placeholder="Price"
+                          className="w-full mt-1 text-right"
+                          min="0"
+                        />
+                      ) : (
+                        <p className="text-right">
+                          {item.unitPrice.toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-sm text-muted-foreground">
+                        Total
+                      </span>
+                      <p className="font-medium text-right">
+                        {item.total.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Desktop view */}
+                  <div className="hidden md:col-span-5 md:block">
                     {isEditing ? (
                       <Input
                         value={item.description}
@@ -447,7 +662,7 @@ export default function WeldingQuoteDetailPage() {
                       <p className="px-3 py-2">{item.description}</p>
                     )}
                   </div>
-                  <div className="col-span-2">
+                  <div className="hidden md:col-span-2 md:block">
                     {isEditing ? (
                       <Input
                         type="number"
@@ -465,7 +680,7 @@ export default function WeldingQuoteDetailPage() {
                       <p className="text-center">{item.quantity}</p>
                     )}
                   </div>
-                  <div className="col-span-2">
+                  <div className="hidden md:col-span-2 md:block">
                     {isEditing ? (
                       <Input
                         type="number"
@@ -481,12 +696,12 @@ export default function WeldingQuoteDetailPage() {
                       />
                     ) : (
                       <p className="text-right">
-                        UGX {item.unitPrice.toLocaleString()}
+                        {item.unitPrice.toLocaleString()}
                       </p>
                     )}
                   </div>
-                  <div className="col-span-2 text-right font-medium">
-                    UGX {item.total.toLocaleString()}
+                  <div className="hidden md:col-span-2 text-right font-medium md:block">
+                    {item.total.toLocaleString()}
                   </div>
                   {isEditing && (
                     <div className="col-span-1 flex justify-end">
@@ -507,15 +722,17 @@ export default function WeldingQuoteDetailPage() {
               <div className="border-t pt-4 mt-6">
                 <div className="flex justify-between text-sm">
                   <span>Subtotal:</span>
-                  <span>UGX {subTotal.toLocaleString()}</span>
+                  <span>{subTotal.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between text-sm mt-1">
-                  <span>Tax (18%):</span>
-                  <span>UGX {taxAmount.toLocaleString()}</span>
-                </div>
+                {includeTax && (
+                  <div className="flex justify-between text-sm mt-1">
+                    <span>Tax (18%):</span>
+                    <span> {taxAmount.toLocaleString()}</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-medium text-base mt-2">
                   <span>Total:</span>
-                  <span>UGX {totalAmount.toLocaleString()}</span>
+                  <span>{totalAmount.toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -586,29 +803,35 @@ export default function WeldingQuoteDetailPage() {
 
           <div className="space-y-2">
             <Label htmlFor="status">Quote Status</Label>
-            <Select
-              value={status}
-              onValueChange={handleStatusChange}
-              disabled={isEditing}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.values(QuoteStatus).map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {isEditing ? (
+              <Select
+                value={status}
+                onValueChange={(newStatus) =>
+                  handleStatusChange(newStatus as QuoteStatus)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.values(QuoteStatus).map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-base font-medium pt-2">{status}</p>
+            )}
           </div>
         </CardContent>
       </Card>
+      </div>
 
       {/* Quick Actions */}
       {!isEditing && (
-        <Card>
+        <Card className="no-print">
           <CardHeader>
             <CardTitle>Quick Actions</CardTitle>
             <CardDescription>Common actions for this quote</CardDescription>
@@ -640,7 +863,11 @@ export default function WeldingQuoteDetailPage() {
               </Button>
               {status === QuoteStatus.ACCEPTED && (
                 <Link
-                  href={`/welding/invoices/create?jobId=${job.id}&quoteId=${quoteId}`}
+                  href={
+                    job?.id
+                      ? `/professional-hub/invoices/create?jobId=${job.id}&quoteId=${quoteId}`
+                      : `/professional-hub/invoices/create?quoteId=${quoteId}`
+                  }
                   className="flex-1"
                 >
                   <Button className="w-full">

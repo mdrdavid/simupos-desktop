@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import {
@@ -78,6 +80,25 @@ export const BranchProvider = ({ children }: BranchProviderProps) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Get current branch ID from localStorage
+  const getStoredBranchId = (): string | null => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("currentBranchId");
+    }
+    return null;
+  };
+
+  // Set current branch ID in localStorage
+  const setStoredBranchId = (branchId: string | null) => {
+    if (typeof window !== "undefined") {
+      if (branchId) {
+        localStorage.setItem("currentBranchId", branchId);
+      } else {
+        localStorage.removeItem("currentBranchId");
+      }
+    }
+  };
+
   const loadBranches = useCallback(async () => {
     if (!isAuthenticated || !currentBusinessId) {
       setBranches([]);
@@ -90,29 +111,33 @@ export const BranchProvider = ({ children }: BranchProviderProps) => {
       setLoading(true);
       setError(null);
 
-      const data = await httpClient(
-        `/branches/business/${currentBusinessId}`,
-        {
-          headers: await getAuthHeaders(),
-        }
-      );
+      const data = await httpClient(`/branches/business/${currentBusinessId}`, {
+        headers: await getAuthHeaders(),
+      });
 
-      const branchesWithBusiness =
-        data.branches?.map((branch: Branch) => ({
-          ...branch,
-          business: businessData,
-        })) || [];
+      // Handle both array and object response formats
+      const branchesData = Array.isArray(data) ? data : data.branches || [];
+
+      const branchesWithBusiness = branchesData.map((branch: Branch) => ({
+        ...branch,
+        business: businessData,
+      }));
 
       setBranches(branchesWithBusiness);
+
+      // Get stored branch ID
+      const storedBranchId = getStoredBranchId();
+      const effectiveBranchId = currentBranchId || storedBranchId;
 
       // Determine current branch
       let selectedBranch: Branch | null = null;
 
       // 1. Check if there's a stored branch ID that exists in the new branches
-      if (currentBranchId) {
+      if (effectiveBranchId) {
         selectedBranch =
-          branchesWithBusiness.find((b: Branch) => b.id === currentBranchId) ||
-          null;
+          branchesWithBusiness.find(
+            (b: Branch) => b.id === effectiveBranchId
+          ) || null;
       }
 
       // 2. Fallback to main branch if no selection or selected branch not found
@@ -128,18 +153,27 @@ export const BranchProvider = ({ children }: BranchProviderProps) => {
 
       if (selectedBranch) {
         setCurrentBranch(selectedBranch);
-        if (selectedBranch.id !== currentBranchId) {
-          localStorage.setItem("currentBranchId", selectedBranch.id);
-          setCurrentBranchId(selectedBranch.id);
+        const newBranchId = selectedBranch.id;
+
+        // Update stored branch ID if different
+        if (newBranchId !== effectiveBranchId) {
+          setStoredBranchId(newBranchId);
+          setCurrentBranchId(newBranchId);
         }
       } else {
         setCurrentBranch(null);
-        localStorage.removeItem("currentBranchId");
+        setStoredBranchId(null);
         setCurrentBranchId(null);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load branches");
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to load branches";
+      setError(errorMessage);
       console.error("Branch loading error:", err);
+
+      // Set empty state on error
+      setBranches([]);
+      setCurrentBranch(null);
     } finally {
       setLoading(false);
     }
@@ -166,16 +200,17 @@ export const BranchProvider = ({ children }: BranchProviderProps) => {
       }
 
       setCurrentBranch(branch);
-      localStorage.setItem("currentBranchId", branchId);
+      setStoredBranchId(branchId);
       setCurrentBranchId(branchId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to select branch");
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to select branch";
+      setError(errorMessage);
       throw err;
     } finally {
       setLoading(false);
     }
   };
-
   const createBranch = async (
     branchData: Omit<
       Branch,
@@ -188,12 +223,13 @@ export const BranchProvider = ({ children }: BranchProviderProps) => {
 
     try {
       setLoading(true);
-      const newBranch = await httpClient(`/branches`, {
+
+      // Filter out fields that are not in the validation schema
+      const { isActive, ...validBranchData } = branchData;
+
+      const newBranch = await httpClient(`/branches/${currentBusinessId}`, {
         method: "POST",
-        body: JSON.stringify({
-          ...branchData,
-          businessId: currentBusinessId,
-        }),
+        body: JSON.stringify(validBranchData), // Only send validated fields
         headers: await getAuthHeaders(),
       });
 
@@ -208,7 +244,10 @@ export const BranchProvider = ({ children }: BranchProviderProps) => {
 
       return completeBranch;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create branch");
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to create branch";
+      console.error("Create branch error:", err);
+      setError(errorMessage);
       throw err;
     } finally {
       setLoading(false);
@@ -231,9 +270,7 @@ export const BranchProvider = ({ children }: BranchProviderProps) => {
       };
 
       setBranches((prev) =>
-        prev.map((branch) =>
-          branch.id === id ? completeBranch : branch
-        )
+        prev.map((branch) => (branch.id === id ? completeBranch : branch))
       );
 
       if (currentBranch?.id === id) {
@@ -262,7 +299,8 @@ export const BranchProvider = ({ children }: BranchProviderProps) => {
       if (currentBranch?.id === id) {
         const remainingBranches = branches.filter((b) => b.id !== id);
         if (remainingBranches.length > 0) {
-          const mainBranch = remainingBranches.find((b) => b.isMain) || remainingBranches[0];
+          const mainBranch =
+            remainingBranches.find((b) => b.isMain) || remainingBranches[0];
           await selectBranch(mainBranch.id);
         } else {
           setCurrentBranch(null);
@@ -285,15 +323,35 @@ export const BranchProvider = ({ children }: BranchProviderProps) => {
   const switchBranch = async (branchId: string) => {
     try {
       setLoading(true);
-      await httpClient("/branches/switch", {
-        method: "POST",
+
+      const authHeaders = await getAuthHeaders();
+
+      // Make sure we're using the exact endpoint
+      const response = await httpClient("/branches/users/current/branch", {
+        method: "PUT",
         body: JSON.stringify({ branchId }),
-        headers: await getAuthHeaders(),
+        headers: {
+          ...authHeaders,
+          "Content-Type": "application/json",
+        },
       });
 
+      // Update local state
       await selectBranch(branchId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to switch branch");
+
+      return response;
+    } catch (err: any) {
+      // Detailed error logging
+      console.error("Switch branch error details:", {
+        message: err.message,
+        status: err.status,
+        url: err.url,
+        response: err.response,
+      });
+
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to switch branch";
+      setError(errorMessage);
       throw err;
     } finally {
       setLoading(false);

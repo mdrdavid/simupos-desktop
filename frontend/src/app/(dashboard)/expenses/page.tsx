@@ -1,13 +1,15 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
+import { useExpenses } from "@/context/ExpenseContext"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,7 +20,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import {
   Search,
@@ -34,59 +44,38 @@ import {
   Repeat,
 } from "lucide-react"
 
-interface Expense {
-  id: string
-  amount: number
-  description: string
-  category: string
-  vendor?: string
-  receiptNumber?: string
-  paymentMethod: "cash" | "bank" | "mobile_money"
-  isRecurring: boolean
-  date: string
-}
-
-// Mock data
-const mockExpenses: Expense[] = [
-  {
-    id: "1",
-    amount: 50000,
-    description: "Office rent payment",
-    category: "Rent",
-    vendor: "Property Manager",
-    receiptNumber: "RCP001",
-    paymentMethod: "bank",
-    isRecurring: true,
-    date: new Date().toISOString(),
-  },
-  {
-    id: "2",
-    amount: 25000,
-    description: "Electricity bill",
-    category: "Utilities",
-    vendor: "UMEME",
-    paymentMethod: "mobile_money",
-    isRecurring: false,
-    date: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: "3",
-    amount: 15000,
-    description: "Office supplies",
-    category: "Equipment",
-    paymentMethod: "cash",
-    isRecurring: false,
-    date: new Date(Date.now() - 172800000).toISOString(),
-  },
-]
+// Using the Expense interface from ExpenseContext instead of defining a local one
 
 export default function ExpensesPage() {
   const { toast } = useToast()
-  const [expenses, setExpenses] = useState<Expense[]>(mockExpenses)
+  const { expenses, loading, error, deleteExpense, fetchExpenses, totalExpenses, totalPages, currentPage } = useExpenses()
   const [searchQuery, setSearchQuery] = useState("")
   const [filterPeriod, setFilterPeriod] = useState<"all" | "day" | "week" | "month" | "year">("all")
   const [filterCategory, setFilterCategory] = useState<string>("all")
   const [showFilterModal, setShowFilterModal] = useState(false)
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+
+  // Fetch expenses on component mount
+  useEffect(() => {
+    // Only fetch if not already loading
+    if (!loading) {
+      fetchExpenses(page, limit, filterPeriod, filterCategory)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, limit, filterPeriod, filterCategory])
+
+  // Show error toast if there's an error
+  useEffect(() => {
+    if (error && error.trim() !== "") {
+      toast({
+        title: "Error",
+        description: error,
+        variant: "destructive",
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]) 
 
   const categories = [
     "all",
@@ -113,36 +102,6 @@ export default function ExpensesPage() {
   const getFilteredExpenses = () => {
     let filtered = expenses
 
-    // Filter by period
-    if (filterPeriod !== "all") {
-      const now = new Date()
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-      const yearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
-
-      filtered = expenses.filter((expense) => {
-        const expenseDate = new Date(expense.date)
-        switch (filterPeriod) {
-          case "day":
-            return expenseDate >= today
-          case "week":
-            return expenseDate >= weekAgo
-          case "month":
-            return expenseDate >= monthAgo
-          case "year":
-            return expenseDate >= yearAgo
-          default:
-            return true
-        }
-      })
-    }
-
-    // Filter by category
-    if (filterCategory !== "all") {
-      filtered = filtered.filter((expense) => expense.category === filterCategory)
-    }
-
     // Filter by search query
     if (searchQuery) {
       filtered = filtered.filter(
@@ -159,8 +118,13 @@ export default function ExpensesPage() {
 
   const filteredExpenses = getFilteredExpenses()
 
-  const formatCurrency = (amount: number) => {
-    return `UGX ${amount.toLocaleString()}`
+  const formatCurrency = (amount: number | string) => {
+    const parsed =
+      typeof amount === "string"
+        ? Number(amount.replace(/[^0-9.-]/g, ""))
+        : Number(amount)
+    const safeAmount = isNaN(parsed) ? 0 : parsed
+    return `UGX ${safeAmount.toLocaleString()}`
   }
 
   const formatDate = (dateString: string) => {
@@ -248,16 +212,41 @@ export default function ExpensesPage() {
     }
   }
 
-  const handleDeleteExpense = (id: string) => {
-    setExpenses((prev) => prev.filter((expense) => expense.id !== id))
-    toast({
-      title: "Success",
-      description: "Expense deleted successfully",
-    })
+  const handleDeleteExpense = async (id: string) => {
+    try {
+      await deleteExpense(id)
+      toast({
+        title: "Success",
+        description: "Expense deleted successfully",
+      })
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to delete expense",
+        variant: "destructive",
+      })
+    }
   }
 
-  const getTotalAmount = () => {
-    return filteredExpenses.reduce((total, expense) => total + expense.amount, 0)
+  const getExpenseTotals = () => {
+    return filteredExpenses.reduce(
+      (totals, expense) => {
+        const rawAmount = (expense as any).amount
+        const parsed =
+          typeof rawAmount === "string"
+            ? Number(rawAmount.replace(/[^0-9.-]/g, ""))
+            : Number(rawAmount)
+        const safeAmount = isNaN(parsed) ? 0 : parsed
+
+        if (expense.isRecurring) {
+          totals.recurring += safeAmount
+        } else {
+          totals.other += safeAmount
+        }
+        return totals
+      },
+      { recurring: 0, other: 0 }
+    )
   }
 
   const clearFilters = () => {
@@ -267,8 +256,17 @@ export default function ExpensesPage() {
     setShowFilterModal(false)
   }
 
+  // Match the loader used on the Users page
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mx-auto p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -363,29 +361,97 @@ export default function ExpensesPage() {
       </Card>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Total Recurring Expenses</CardTitle>
+            <Repeat className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{formatCurrency(getTotalAmount())}</div>
+            <div className="text-2xl font-bold text-red-600">{formatCurrency(getExpenseTotals().recurring)}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Transactions</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Other Expenses</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{formatCurrency(getExpenseTotals().other)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
             <Receipt className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{filteredExpenses.length}</div>
+            <div className="text-2xl font-bold">
+              {formatCurrency(getExpenseTotals().recurring + getExpenseTotals().other)}
+            </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Expenses List */}
-      {filteredExpenses.length === 0 ? (
+      <div className="space-y-8">
+        <ExpenseList
+          title="Recurring Expenses"
+          expenses={filteredExpenses.filter((e) => e.isRecurring)}
+          formatCurrency={formatCurrency}
+          formatDate={formatDate}
+          getCategoryIcon={getCategoryIcon}
+          getPaymentColor={getPaymentColor}
+          getPaymentIcon={getPaymentIcon}
+          getPaymentLabel={getPaymentLabel}
+          handleDeleteExpense={handleDeleteExpense}
+        />
+        <ExpenseList
+          title="Other Expenses"
+          expenses={filteredExpenses.filter((e) => !e.isRecurring)}
+          formatCurrency={formatCurrency}
+          formatDate={formatDate}
+          getCategoryIcon={getCategoryIcon}
+          getPaymentColor={getPaymentColor}
+          getPaymentIcon={getPaymentIcon}
+          getPaymentLabel={getPaymentLabel}
+          handleDeleteExpense={handleDeleteExpense}
+        />
+      </div>
+
+      {filteredExpenses.length > 0 && (
+        <Pagination>
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                href="#"
+                onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+              />
+            </PaginationItem>
+            {[...Array(totalPages)].map((_, i) => (
+              <PaginationItem key={i}>
+                <PaginationLink
+                  href="#"
+                  isActive={page === i + 1}
+                  onClick={() => setPage(i + 1)}
+                >
+                  {i + 1}
+                </PaginationLink>
+              </PaginationItem>
+            ))}
+            <PaginationItem>
+              <PaginationNext
+                href="#"
+                onClick={() =>
+                  setPage((prev) => Math.min(prev + 1, totalPages))
+                }
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
+
+      {filteredExpenses.length === 0 && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Receipt className="h-16 w-16 text-gray-400 mb-4" />
@@ -405,87 +471,119 @@ export default function ExpensesPage() {
             )}
           </CardContent>
         </Card>
-      ) : (
-        <div className="space-y-4">
-          {filteredExpenses.map((expense) => (
-            <Card key={expense.id}>
-              <CardContent className="p-6">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-start gap-4 mb-4">
-                      <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center text-xl">
-                        {getCategoryIcon(expense.category)}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg text-gray-900 mb-1">{expense.description}</h3>
-                        <div className="flex items-center gap-4 text-sm text-gray-600">
-                          <Badge variant="secondary">{expense.category}</Badge>
-                          {expense.vendor && <span>Vendor: {expense.vendor}</span>}
-                          {expense.receiptNumber && <span>Receipt: #{expense.receiptNumber}</span>}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        <span>{formatDate(expense.date)}</span>
-                      </div>
-                      <div className={`flex items-center gap-1 ${getPaymentColor(expense.paymentMethod)}`}>
-                        {getPaymentIcon(expense.paymentMethod)}
-                        <span>{getPaymentLabel(expense.paymentMethod)}</span>
-                      </div>
-                      {expense.isRecurring && (
-                        <div className="flex items-center gap-1 text-teal-600">
-                          <Repeat className="h-4 w-4" />
-                          <span>Recurring</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-end gap-4">
-                    <div className="text-2xl font-bold text-red-600">-{formatCurrency(expense.amount)}</div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" asChild className="bg-transparent">
-                        <Link href={`/expenses/edit/${expense.id}`}>
-                          <Edit className="h-4 w-4 mr-1" />
-                          Edit
-                        </Link>
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="outline" size="sm" className="bg-transparent">
-                            <Trash2 className="h-4 w-4 mr-1" />
-                            Delete
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Expense</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete &quot;{expense.description}&quot;? This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeleteExpense(expense.id)}
-                              className="bg-red-600 hover:bg-red-700"
-                            >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
       )}
     </div>
   )
+}
+
+// Extracted ExpenseList component
+function ExpenseList({
+  title,
+  expenses,
+  formatCurrency,
+  formatDate,
+  getCategoryIcon,
+  getPaymentColor,
+  getPaymentIcon,
+  getPaymentLabel,
+  handleDeleteExpense,
+}: {
+  title: string;
+  expenses: any[];
+  formatCurrency: (amount: number | string) => string;
+  formatDate: (dateString: string) => string;
+  getCategoryIcon: (category: string) => string;
+  getPaymentColor: (paymentMethod: string) => string;
+  getPaymentIcon: (paymentMethod: string) => JSX.Element;
+  getPaymentLabel: (paymentMethod: string) => string;
+  handleDeleteExpense: (id: string) => Promise<void>;
+}) {
+  if (expenses.length === 0) {
+    return null;
+  }
+
+  return (
+    <div>
+      <h2 className="text-2xl font-semibold mb-4">{title}</h2>
+      <div className="space-y-4">
+        {expenses.map((expense) => (
+          <Card key={expense.id}>
+            <CardContent className="p-6">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center text-xl">
+                      {getCategoryIcon(expense.category)}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-lg text-gray-900 mb-1">{expense.category}</h3>
+                      <p className="text-sm text-gray-600">{expense.description}</p>
+                      <div className="flex items-center gap-4 text-sm text-gray-600 mt-2">
+                        {expense.vendor && <span>Vendor: {expense.vendor}</span>}
+                        {expense.receiptNumber && <span>Receipt: #{expense.receiptNumber}</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+                    <div className="flex items-center gap-1">
+                      <Calendar className="h-4 w-4" />
+                      <span>{formatDate(expense.date)}</span>
+                    </div>
+                    <div className={`flex items-center gap-1 ${getPaymentColor(expense.paymentMethod)}`}>
+                      {getPaymentIcon(expense.paymentMethod)}
+                      <span>{getPaymentLabel(expense.paymentMethod)}</span>
+                    </div>
+                    {expense.isRecurring && (
+                      <div className="flex items-center gap-1 text-teal-600">
+                        <Repeat className="h-4 w-4" />
+                        <span>Recurring</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-end gap-4">
+                  <div className="text-2xl font-bold text-red-600">{formatCurrency(expense.amount)}</div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" asChild className="bg-transparent">
+                      <Link href={`/expenses/edit/${expense.id}`}>
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
+                      </Link>
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="bg-transparent">
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Delete
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Expense</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete &quot;{expense.description}&quot;? This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDeleteExpense(expense.id)}
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
 }

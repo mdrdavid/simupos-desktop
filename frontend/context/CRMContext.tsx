@@ -1,8 +1,11 @@
-
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-"use client"
-import React, { createContext, useState, useContext, ReactNode } from "react";
+"use client";
+import React, {
+  createContext,
+  useState,
+  useContext,
+  ReactNode,
+  useCallback,
+} from "react";
 import { httpClient } from "@/src/data/api/httpClient";
 import { useAuth } from "./AuthContext";
 import { CustomerStats } from "@/src/types/crm";
@@ -16,11 +19,11 @@ interface Customer {
   birthday?: string;
   customerType: "Regular" | "VIP" | "Wholesale";
   notes?: string;
-  totalSpend:  number;
+  totalSpend: number;
   lastVisit?: string;
   loyaltyPoints: number;
   branchId: string;
-   createdAt?: string;
+  createdAt?: string;
   purchases?: Array<{
     id: string;
     date: string;
@@ -34,8 +37,8 @@ interface CRMContextType {
   loading: boolean;
   error: string | null;
   addCustomer: (
-    customer: Omit<Customer, "id" | "totalSpend" | "loyaltyPoints">
-  ) => Promise<void>;
+    customer: Omit<Customer, "id" | "totalSpend" | "loyaltyPoints" | "branchId">
+  ) => Promise<Customer | undefined>;
   updateCustomer: (
     id: string,
     customerData: Partial<Customer>
@@ -43,9 +46,10 @@ interface CRMContextType {
   getCustomerById: (id: string) => Customer | undefined;
   deleteCustomer: (id: string) => Promise<void>;
   searchCustomers: (searchTerm: string) => Promise<void>;
-  fetchCustomers: () => Promise<void>;
-  getCustomerAnalytics: () => Promise<any>;
-  getCustomerStats: () => Promise<CustomerStats>
+  fetchCustomers: () => Promise<Customer[]>;
+  fetchCustomerById: (id: string) => Promise<Customer | null>;
+  getCustomerAnalytics: () => Promise<unknown>;
+  getCustomerStats: () => Promise<CustomerStats>;
 }
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
@@ -56,10 +60,10 @@ export const CRMProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     if (!currentBranchId) {
       setError("No branch selected");
-      return;
+      return [];
     }
 
     try {
@@ -69,19 +73,56 @@ export const CRMProvider = ({ children }: { children: ReactNode }) => {
         `/customers/branch/${currentBranchId}`,
         { headers }
       );
-      setCustomers(response.customers);
+
+      // Handle both array and object responses
+      const customerData = Array.isArray(response) ? response : (response.customers || []);
+
+      setCustomers(customerData);
       setError(null);
+      return customerData;
     } catch (err) {
       setError("Failed to fetch customers");
       console.error(err);
+      return [];
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentBranchId, getAuthHeaders]);
 
-  const addCustomer = async (
-    customerData: Omit<Customer, "id" | "totalSpend" | "loyaltyPoints">
-  ) => {
+  const fetchCustomerById = useCallback(async (id: string) => {
+    try {
+      setLoading(true);
+      const headers = await getAuthHeaders();
+      const response = await httpClient(`/customers/${id}`, { headers });
+
+      // Update the customer in our local state if it exists
+      setCustomers(prev => {
+        const index = prev.findIndex(c => c.id === id);
+        if (index !== -1) {
+          const newCustomers = [...prev];
+          newCustomers[index] = response;
+          return newCustomers;
+        }
+        return [...prev, response];
+      });
+
+      setError(null);
+      return response;
+    } catch (err) {
+      setError("Failed to fetch customer details");
+      console.error(err);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [getAuthHeaders]);
+
+  const addCustomer = useCallback(async (
+    customerData: Omit<
+      Customer,
+      "id" | "totalSpend" | "loyaltyPoints" | "branchId"
+    > // Remove branchId
+  ): Promise<Customer | undefined> => {
     if (!currentBranchId) {
       setError("No branch selected");
       return;
@@ -91,10 +132,10 @@ export const CRMProvider = ({ children }: { children: ReactNode }) => {
       setLoading(true);
       const headers = await getAuthHeaders();
 
-      // Transform the data before sending
+      // Transform the data before sending - add branchId here
       const payload = {
         ...customerData,
-        branchId: currentBranchId,
+        branchId: currentBranchId, // Add branchId from context
         // Convert ISO string to date-only format (YYYY-MM-DD)
         birthday: customerData.birthday
           ? customerData.birthday.split("T")[0]
@@ -102,26 +143,28 @@ export const CRMProvider = ({ children }: { children: ReactNode }) => {
         // Ensure phone is string and meets length requirements
         phone: String(customerData.phone).trim(),
       };
-
       const response = await httpClient("/customers", {
         method: "POST",
         body: JSON.stringify(payload),
         headers,
       });
-
       setCustomers((prev) => [...prev, response]);
       setError(null);
       return response;
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError("Failed to add customer");
-      console.error("Detailed error:", err.response?.data || err.message);
-      throw err; // Re-throw to handle in calling component
+      if (err instanceof Error) {
+        const errorWithResponse = err as Error & { response?: { data?: unknown } };
+        console.error("Detailed error:", errorWithResponse.response?.data || err.message);
+      }
+      console.error("Full error object:", err);
+      throw err;
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentBranchId, getAuthHeaders]);
 
-  const updateCustomer = async (
+  const updateCustomer = useCallback(async (
     id: string,
     customerData: Partial<Customer>
   ) => {
@@ -143,13 +186,13 @@ export const CRMProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
 
-  const getCustomerById = (id: string): Customer | undefined => {
+  const getCustomerById = useCallback((id: string): Customer | undefined => {
     return customers.find((customer) => customer.id === id);
-  };
+  }, [customers]);
 
-  const deleteCustomer = async (id: string) => {
+  const deleteCustomer = useCallback(async (id: string) => {
     try {
       setLoading(true);
       const headers = await getAuthHeaders();
@@ -165,9 +208,9 @@ export const CRMProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
 
-  const searchCustomers = async (searchTerm: string) => {
+  const searchCustomers = useCallback(async (searchTerm: string) => {
     if (!currentBranchId) {
       setError("No branch selected");
       return;
@@ -188,9 +231,9 @@ export const CRMProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentBranchId, getAuthHeaders]);
 
-  const getCustomerAnalytics = async () => {
+  const getCustomerAnalytics = useCallback(async () => {
     if (!currentBranchId) {
       setError("No branch selected");
       throw new Error("No branch selected");
@@ -211,74 +254,77 @@ export const CRMProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentBranchId, getAuthHeaders]);
 
- const getCustomerStats = async (): Promise<CustomerStats> => {
-  if (!currentBranchId) {
-    setError("No branch selected");
-    return {
-      totalCustomers: 0,
-      newThisMonth: 0,
-      totalSpend: 0,
-      averageSpend: 0,
-    };
-  }
+  const getCustomerStats = useCallback(async (): Promise<CustomerStats> => {
+    if (!currentBranchId) {
+      setError("No branch selected");
+      return {
+        totalCustomers: 0,
+        newThisMonth: 0,
+        totalSpend: 0,
+        averageSpend: 0,
+      };
+    }
 
-  try {
-    setLoading(true);
-    const headers = await getAuthHeaders();
-    
-    // Fetch customers for the current branch
-    const response = await httpClient(
-      `/customers/branch/${currentBranchId}`,
-      { headers }
-    );
-    
-    const customers = response.customers || [];
-    const totalCustomers = customers.length;
-    
-    // Calculate new customers this month
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-    
-    const newThisMonth = customers.filter((customer: Customer) => {
-      const createdDate = new Date(customer.createdAt || customer.lastVisit || new Date());
-      return (
-        createdDate.getMonth() === currentMonth && 
-        createdDate.getFullYear() === currentYear
+    try {
+      setLoading(true);
+      const headers = await getAuthHeaders();
+
+      // Fetch customers for the current branch
+      const response = await httpClient(
+        `/customers/branch/${currentBranchId}`,
+        { headers }
       );
-    }).length;
-    
-    // Calculate total and average spend
-    const totalSpend = customers.reduce((sum: number, customer: Customer) => {
-      // Ensure totalSpend is a number (it might come as string from API)
-      const spend = typeof customer.totalSpend === 'string' 
-        ? parseFloat(customer.totalSpend) 
-        : customer.totalSpend || 0;
-      return sum + spend;
-    }, 0);
-    
-    const averageSpend = totalCustomers > 0 ? totalSpend / totalCustomers : 0;
-    
-    return {
-      totalCustomers,
-      newThisMonth,
-      totalSpend,
-      averageSpend,
-    };
-  } catch (err) {
-    setError("Failed to get customer stats");
-    console.error("Get stats error:", err);
-    return {
-      totalCustomers: 0,
-      newThisMonth: 0,
-      totalSpend: 0,
-      averageSpend: 0,
-    };
-  } finally {
-    setLoading(false);
-  }
-};
+
+      const customers = response.customers || [];
+      const totalCustomers = customers.length;
+
+      // Calculate new customers this month
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+
+      const newThisMonth = customers.filter((customer: Customer) => {
+        const createdDate = new Date(
+          customer.createdAt || customer.lastVisit || new Date()
+        );
+        return (
+          createdDate.getMonth() === currentMonth &&
+          createdDate.getFullYear() === currentYear
+        );
+      }).length;
+
+      // Calculate total and average spend
+      const totalSpend = customers.reduce((sum: number, customer: Customer) => {
+        // Ensure totalSpend is a number (it might come as string from API)
+        const spend =
+          typeof customer.totalSpend === "string"
+            ? parseFloat(customer.totalSpend)
+            : customer.totalSpend || 0;
+        return sum + spend;
+      }, 0);
+
+      const averageSpend = totalCustomers > 0 ? totalSpend / totalCustomers : 0;
+
+      return {
+        totalCustomers,
+        newThisMonth,
+        totalSpend,
+        averageSpend,
+      };
+    } catch (err) {
+      setError("Failed to get customer stats");
+      console.error("Get stats error:", err);
+      return {
+        totalCustomers: 0,
+        newThisMonth: 0,
+        totalSpend: 0,
+        averageSpend: 0,
+      };
+    } finally {
+      setLoading(false);
+    }
+  }, [currentBranchId, getAuthHeaders]);
   return (
     <CRMContext.Provider
       value={{
@@ -291,8 +337,9 @@ export const CRMProvider = ({ children }: { children: ReactNode }) => {
         deleteCustomer,
         searchCustomers,
         fetchCustomers,
+        fetchCustomerById,
         getCustomerAnalytics,
-         getCustomerStats,
+        getCustomerStats,
       }}
     >
       {children}
@@ -307,342 +354,3 @@ export const useCRM = () => {
   }
   return context;
 };
-
-
-// "use client"
-
-// import type React from "react"
-// import { createContext, useContext, useState, useEffect } from "react"
-// import type { Customer, CustomerStats, CreateCustomerData, UpdateCustomerData } from "@/src/types/crm"
-
-// interface CRMContextType {
-//   customers: Customer[]
-//   loading: boolean
-//   error: string | null
-//   searchCustomers: (query: string) => Promise<void>
-//   getCustomerById: (id: string) => Promise<Customer | null>
-//   addCustomer: (data: CreateCustomerData) => Promise<Customer>
-//   updateCustomer: (id: string, data: UpdateCustomerData) => Promise<Customer>
-//   deleteCustomer: (id: string) => Promise<void>
-//   getCustomerStats: () => Promise<CustomerStats>
-// }
-
-// const CRMContext = createContext<CRMContextType | undefined>(undefined)
-
-// // Mock data for demonstration
-// const mockCustomers: Customer[] = [
-//   {
-//     id: "1",
-//     name: "John Doe",
-//     phone: "+256701234567",
-//     email: "john.doe@email.com",
-//     gender: "Male",
-//     birthday: "1990-05-15",
-//     customerType: "VIP",
-//     notes: "Frequent customer, prefers organic products",
-//     totalSpend: 2500000,
-//     lastVisit: "2024-01-15",
-//     loyaltyPoints: 250,
-//     branchId: "branch-1",
-//     createdAt: "2023-12-01",
-//     updatedAt: "2024-01-15",
-//     purchases: [
-//       {
-//         id: "p1",
-//         date: "2024-01-15",
-//         amount: 150000,
-//         items: ["Rice 5kg", "Cooking Oil 2L", "Sugar 1kg"],
-//         customerId: "1",
-//       },
-//       {
-//         id: "p2",
-//         date: "2024-01-10",
-//         amount: 85000,
-//         items: ["Bread", "Milk 1L", "Eggs 12pcs"],
-//         customerId: "1",
-//       },
-//     ],
-//   },
-//   {
-//     id: "2",
-//     name: "Jane Smith",
-//     phone: "+256702345678",
-//     email: "jane.smith@email.com",
-//     gender: "Female",
-//     birthday: "1985-08-22",
-//     customerType: "Regular",
-//     notes: "Prefers evening shopping",
-//     totalSpend: 1800000,
-//     lastVisit: "2024-01-12",
-//     loyaltyPoints: 180,
-//     branchId: "branch-1",
-//     createdAt: "2023-11-15",
-//     updatedAt: "2024-01-12",
-//     purchases: [
-//       {
-//         id: "p3",
-//         date: "2024-01-12",
-//         amount: 120000,
-//         items: ["Chicken 1kg", "Tomatoes 2kg", "Onions 1kg"],
-//         customerId: "2",
-//       },
-//     ],
-//   },
-//   {
-//     id: "3",
-//     name: "Robert Johnson",
-//     phone: "+256703456789",
-//     email: "robert.j@email.com",
-//     gender: "Male",
-//     customerType: "Wholesale",
-//     notes: "Bulk buyer for restaurant",
-//     totalSpend: 5200000,
-//     lastVisit: "2024-01-14",
-//     loyaltyPoints: 520,
-//     branchId: "branch-1",
-//     createdAt: "2023-10-20",
-//     updatedAt: "2024-01-14",
-//     purchases: [
-//       {
-//         id: "p4",
-//         date: "2024-01-14",
-//         amount: 850000,
-//         items: ["Rice 25kg", "Cooking Oil 10L", "Flour 10kg"],
-//         customerId: "3",
-//       },
-//     ],
-//   },
-//   {
-//     id: "4",
-//     name: "Mary Williams",
-//     phone: "+256704567890",
-//     email: "mary.w@email.com",
-//     gender: "Female",
-//     birthday: "1992-03-10",
-//     customerType: "Regular",
-//     totalSpend: 950000,
-//     lastVisit: "2024-01-11",
-//     loyaltyPoints: 95,
-//     branchId: "branch-1",
-//     createdAt: "2023-12-10",
-//     updatedAt: "2024-01-11",
-//     purchases: [],
-//   },
-//   {
-//     id: "5",
-//     name: "David Brown",
-//     phone: "+256705678901",
-//     customerType: "VIP",
-//     notes: "Corporate account",
-//     totalSpend: 3200000,
-//     lastVisit: "2024-01-13",
-//     loyaltyPoints: 320,
-//     branchId: "branch-1",
-//     createdAt: "2023-11-05",
-//     updatedAt: "2024-01-13",
-//     purchases: [
-//       {
-//         id: "p5",
-//         date: "2024-01-13",
-//         amount: 450000,
-//         items: ["Office Supplies", "Beverages", "Snacks"],
-//         customerId: "5",
-//       },
-//     ],
-//   },
-// ]
-
-// export function CRMProvider({ children }: { children: React.ReactNode }) {
-//   const [customers, setCustomers] = useState<Customer[]>([])
-//   const [loading, setLoading] = useState(false)
-//   const [error, setError] = useState<string | null>(null)
-
-//   useEffect(() => {
-//     // Initialize with mock data
-//     setCustomers(mockCustomers)
-//   }, [])
-
-//   const searchCustomers = async (query: string) => {
-//     setLoading(true)
-//     setError(null)
-
-//     try {
-//       // Simulate API delay
-//       await new Promise((resolve) => setTimeout(resolve, 500))
-
-//       if (!query.trim()) {
-//         setCustomers(mockCustomers)
-//       } else {
-//         const filtered = mockCustomers.filter(
-//           (customer) =>
-//             customer.name.toLowerCase().includes(query.toLowerCase()) ||
-//             customer.phone.includes(query) ||
-//             (customer.email && customer.email.toLowerCase().includes(query.toLowerCase())),
-//         )
-//         setCustomers(filtered)
-//       }
-//     } catch (err) {
-//       setError("Failed to search customers")
-//       console.error("Search error:", err)
-//     } finally {
-//       setLoading(false)
-//     }
-//   }
-
-//   const getCustomerById = async (id: string): Promise<Customer | null> => {
-//     try {
-//       // Simulate API delay
-//       await new Promise((resolve) => setTimeout(resolve, 300))
-
-//       const customer = mockCustomers.find((c) => c.id === id)
-//       return customer || null
-//     } catch (err) {
-//       setError("Failed to get customer")
-//       console.error("Get customer error:", err)
-//       return null
-//     }
-//   }
-
-//   const addCustomer = async (data: CreateCustomerData): Promise<Customer> => {
-//     setLoading(true)
-//     setError(null)
-
-//     try {
-//       // Simulate API delay
-//       await new Promise((resolve) => setTimeout(resolve, 1000))
-
-//       const newCustomer: Customer = {
-//         id: Date.now().toString(),
-//         ...data,
-//         totalSpend: 0,
-//         loyaltyPoints: 0,
-//         createdAt: new Date().toISOString(),
-//         updatedAt: new Date().toISOString(),
-//         purchases: [],
-//       }
-
-//       mockCustomers.push(newCustomer)
-//       setCustomers([...mockCustomers])
-
-//       return newCustomer
-//     } catch (err) {
-//       setError("Failed to add customer")
-//       console.error("Add customer error:", err)
-//       throw err
-//     } finally {
-//       setLoading(false)
-//     }
-//   }
-
-//   const updateCustomer = async (id: string, data: UpdateCustomerData): Promise<Customer> => {
-//     setLoading(true)
-//     setError(null)
-
-//     try {
-//       // Simulate API delay
-//       await new Promise((resolve) => setTimeout(resolve, 1000))
-
-//       const index = mockCustomers.findIndex((c) => c.id === id)
-//       if (index === -1) {
-//         throw new Error("Customer not found")
-//       }
-
-//       const updatedCustomer = {
-//         ...mockCustomers[index],
-//         ...data,
-//         updatedAt: new Date().toISOString(),
-//       }
-
-//       mockCustomers[index] = updatedCustomer
-//       setCustomers([...mockCustomers])
-
-//       return updatedCustomer
-//     } catch (err) {
-//       setError("Failed to update customer")
-//       console.error("Update customer error:", err)
-//       throw err
-//     } finally {
-//       setLoading(false)
-//     }
-//   }
-
-//   const deleteCustomer = async (id: string): Promise<void> => {
-//     setLoading(true)
-//     setError(null)
-
-//     try {
-//       // Simulate API delay
-//       await new Promise((resolve) => setTimeout(resolve, 1000))
-
-//       const index = mockCustomers.findIndex((c) => c.id === id)
-//       if (index === -1) {
-//         throw new Error("Customer not found")
-//       }
-
-//       mockCustomers.splice(index, 1)
-//       setCustomers([...mockCustomers])
-//     } catch (err) {
-//       setError("Failed to delete customer")
-//       console.error("Delete customer error:", err)
-//       throw err
-//     } finally {
-//       setLoading(false)
-//     }
-//   }
-
-//   const getCustomerStats = async (): Promise<CustomerStats> => {
-//     try {
-//       // Simulate API delay
-//       await new Promise((resolve) => setTimeout(resolve, 300))
-
-//       const totalCustomers = mockCustomers.length
-//       const currentMonth = new Date().getMonth()
-//       const currentYear = new Date().getFullYear()
-
-//       const newThisMonth = mockCustomers.filter((customer) => {
-//         const createdDate = new Date(customer.createdAt)
-//         return createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear
-//       }).length
-
-//       const totalSpend = mockCustomers.reduce((sum, customer) => sum + customer.totalSpend, 0)
-//       const averageSpend = totalCustomers > 0 ? totalSpend / totalCustomers : 0
-
-//       return {
-//         totalCustomers,
-//         newThisMonth,
-//         totalSpend,
-//         averageSpend,
-//       }
-//     } catch (err) {
-//       console.error("Get stats error:", err)
-//       return {
-//         totalCustomers: 0,
-//         newThisMonth: 0,
-//         totalSpend: 0,
-//         averageSpend: 0,
-//       }
-//     }
-//   }
-
-//   const value: CRMContextType = {
-//     customers,
-//     loading,
-//     error,
-//     searchCustomers,
-//     getCustomerById,
-//     addCustomer,
-//     updateCustomer,
-//     deleteCustomer,
-//     getCustomerStats,
-//   }
-
-//   return <CRMContext.Provider value={value}>{children}</CRMContext.Provider>
-// }
-
-// export function useCRM() {
-//   const context = useContext(CRMContext)
-//   if (context === undefined) {
-//     throw new Error("useCRM must be used within a CRMProvider")
-//   }
-//   return context
-// }

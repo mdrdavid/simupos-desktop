@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, Save, User, Building, Phone, Mail, MapPin, CreditCard } from "lucide-react"
 import { useSupplier } from "@/context/SupplierContext"
+import { Combobox } from "@/components/ui/combobox"
 import { toast } from "sonner"
 import Link from "next/link"
 
@@ -164,21 +165,22 @@ export default function AddSupplierPage() {
 
             <div>
               <Label htmlFor="category">Category *</Label>
-              <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
-                <SelectTrigger className={errors.category ? "border-red-500" : ""}>
-                  <SelectValue placeholder="Select supplier category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="electronics">Electronics</SelectItem>
-                  <SelectItem value="clothing">Clothing & Fashion</SelectItem>
-                  <SelectItem value="food">Food & Beverages</SelectItem>
-                  <SelectItem value="office">Office Supplies</SelectItem>
-                  <SelectItem value="automotive">Automotive</SelectItem>
-                  <SelectItem value="construction">Construction</SelectItem>
-                  <SelectItem value="healthcare">Healthcare</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
+              <Combobox
+                options={[
+                  { value: "electronics", label: "Electronics" },
+                  { value: "clothing", label: "Clothing & Fashion" },
+                  { value: "food", label: "Food & Beverages" },
+                  { value: "office", label: "Office Supplies" },
+                  { value: "automotive", label: "Automotive" },
+                  { value: "construction", label: "Construction" },
+                  { value: "healthcare", label: "Healthcare" },
+                  { value: "other", label: "Other" },
+                ]}
+                value={formData.category}
+                onChange={(value) => handleInputChange("category", value)}
+                placeholder="Select or create a category"
+                creatable
+              />
               {errors.category && <p className="text-sm text-red-500 mt-1">{errors.category}</p>}
             </div>
 

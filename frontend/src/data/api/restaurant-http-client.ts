@@ -18,7 +18,11 @@ export const httpClient = async (url: string, options?: RequestInit) => {
       throw new Error(errorData.message || "Bad Request");
     }
     case 401:
-      window.location.href = "/auth/login";
+      // Clear auth data and redirect to login
+      if (typeof window !== 'undefined') {
+        localStorage.clear();
+        window.location.href = "/auth/login";
+      }
       return null;
     case 403: {
       const errorData = await parseErrorBody();

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
@@ -26,6 +27,9 @@ import Link from "next/link"
 import { useWelding } from "@/context/WeldingContext"
 import { useWeldingFinancials } from "@/context/WeldingFinancialContext"
 import { InvoicePaymentStatus } from "@/src/types/welding"
+import { useBusiness } from "@/context/BusinessContext"
+import { generateInvoicePDF } from "@/src/utils/exportUtils"
+import { capitalizeWords } from "@/src/utils"
 
 export default function WeldingInvoiceDetailPage() {
   const params = useParams()
@@ -34,6 +38,7 @@ export default function WeldingInvoiceDetailPage() {
 
   const { getWeldingJobById } = useWelding()
   const { getInvoiceById, recordPaymentForInvoice, deleteInvoice } = useWeldingFinancials()
+  const { currentBusiness } = useBusiness();
 
   const [invoice, setInvoice] = useState<any>(null)
   const [job, setJob] = useState<any>(null)
@@ -52,10 +57,11 @@ export default function WeldingInvoiceDetailPage() {
     const invoiceData = getInvoiceById(invoiceId)
     if (invoiceData) {
       setInvoice(invoiceData)
-
-      const jobData = getWeldingJobById(invoiceData.weldingJobId)
-      if (jobData) {
-        setJob(jobData)
+      if (invoiceData.weldingJobId) {
+        const jobData = getWeldingJobById(invoiceData.weldingJobId)
+        if (jobData) {
+          setJob(jobData)
+        }
       }
     }
   }, [invoiceId, getInvoiceById, getWeldingJobById])
@@ -95,7 +101,7 @@ export default function WeldingInvoiceDetailPage() {
         const updatedInvoice = getInvoiceById(invoiceId)
         if (updatedInvoice) setInvoice(updatedInvoice)
         // Navigate to receipt
-        router.push(`/welding/receipts/${invoiceId}?paymentId=${newPayment.id}`)
+        router.push(`/professional-hub/receipts/${invoiceId}?paymentId=${newPayment.id}`)
       }
     } catch (error) {
       console.error("Failed to record payment:", error)
@@ -109,7 +115,7 @@ export default function WeldingInvoiceDetailPage() {
     setIsDeleting(true)
     try {
       await deleteInvoice(invoiceId)
-      router.push(`/welding/jobs/${job.id}`)
+      router.push(`/professional-hub/jobs/${job.id}`)
     } catch (error) {
       console.error("Failed to delete invoice:", error)
       alert("Failed to delete invoice")
@@ -120,6 +126,11 @@ export default function WeldingInvoiceDetailPage() {
 
   const handlePrint = () => {
     window.print()
+  }
+
+  const handleDownload = () => {
+    if (!invoice || !currentBusiness) return;
+    generateInvoicePDF(invoice, currentBusiness);
   }
 
   const getStatusColor = (status: InvoicePaymentStatus) => {
@@ -153,7 +164,7 @@ export default function WeldingInvoiceDetailPage() {
     return totalAmount - amountPaid
   }
 
-  if (!invoice || !job) {
+  if (!invoice) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
@@ -166,26 +177,53 @@ export default function WeldingInvoiceDetailPage() {
 
   return (
     <div className="space-y-6">
+      {/* Print Styles */}
+      <style jsx global>{`
+        @media print {
+          .no-print {
+            display: none !important;
+          }
+          .printable {
+            background: white !important;
+          }
+          .invoice-logo {
+            max-width: 80px !important;
+            max-height: 80px !important;
+            object-fit: contain !important;
+          }
+        }
+      `}</style>
+      
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 no-print">
         <div className="flex items-center gap-4">
-          <Link href={`/welding/jobs/${job.id}`}>
+          <Link href={job ? `/professional-hub/jobs/${job.id}` : "/professional-hub/invoices"}>
             <Button variant="outline" size="icon">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
           <div>
+            <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold">Invoice #{invoice.invoiceNumber}</h1>
-            <p className="text-muted-foreground">
-              Job: {job.jobType} - {job.description.substring(0, 50)}...
-            </p>
+            <Badge className={`${getStatusColor(invoice.paymentStatus)}`}>
+              {capitalizeWords(invoice.paymentStatus.replace("_", " "))}
+            </Badge>
+            </div>
+            {job && (
+              <p className="text-muted-foreground mt-1">
+                Job: {job.jobType} - {job.description.substring(0, 50)}...
+              </p>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge className={getStatusColor(invoice.paymentStatus)}>{invoice.paymentStatus.replace("_", " ")}</Badge>
+        <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" />
             Print
+          </Button>
+          <Button variant="outline" onClick={handleDownload}>
+            <Receipt className="h-4 w-4 mr-2" />
+            Download PDF
           </Button>
           {invoice.paymentStatus !== InvoicePaymentStatus.PAID && (
             <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
@@ -273,91 +311,101 @@ export default function WeldingInvoiceDetailPage() {
       </div>
 
       {/* Invoice Content */}
-      <div ref={printRef} className="print:shadow-none">
-        <Card>
-          <CardHeader>
+      <div ref={printRef} className="print:shadow-none printable">
+        <Card className="border-none shadow-none bg-white">
+          <CardContent className="p-8 md:p-12 space-y-12">
+            {/* Header section */}
             <div className="flex justify-between items-start">
-              <div>
-                <CardTitle className="text-xl">SimuPOS Welding Services</CardTitle>
-                <p className="text-muted-foreground">Professional Welding Solutions</p>
+              <div className="space-y-6">
+                <h1 className="text-4xl font-bold tracking-tight">Invoice</h1>
+                <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                  <span className="text-muted-foreground">Invoice number</span>
+                  <span className="font-medium">{invoice.invoiceNumber}</span>
+                  <span className="text-muted-foreground">Date of issue</span>
+                  <span>{new Date(invoice.issueDate).toLocaleDateString("en-US", { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                  <span className="text-muted-foreground">Date due</span>
+                  <span>{new Date(invoice.dueDate).toLocaleDateString("en-US", { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="font-semibold">Invoice #{invoice.invoiceNumber}</p>
-                <p className="text-sm text-muted-foreground">
-                  Issue Date: {new Date(invoice.issueDate).toLocaleDateString()}
-                </p>
-                {invoice.dueDate && (
-                  <p className="text-sm text-muted-foreground">
-                    Due Date: {new Date(invoice.dueDate).toLocaleDateString()}
-                  </p>
+              <div className="flex flex-col items-end">
+                {currentBusiness?.logo ? (
+                  <img
+                    src={currentBusiness.logo}
+                    alt="Logo"
+                    className="h-12 w-auto object-contain"
+                  />
+                ) : (
+                  <div className="w-0 h-0 border-l-[15px] border-l-transparent border-b-[26px] border-b-black border-r-[15px] border-r-transparent" />
                 )}
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Customer Details */}
-            <div>
-              <h3 className="font-semibold mb-2">Bill To:</h3>
-              <div className="text-sm">
-                <p className="font-medium">{invoice.customerDetails.name}</p>
-                <p className="text-muted-foreground">{invoice.customerDetails.contact}</p>
+
+            {/* Addresses */}
+            <div className="grid grid-cols-2 gap-12 text-sm">
+              <div className="space-y-2">
+                <p className="font-bold">{currentBusiness?.name}</p>
+                <div className="text-muted-foreground space-y-1">
+                  <p className="whitespace-pre-line">{currentBusiness?.address}</p>
+                  <p>{currentBusiness?.phone}</p>
+                  <p>{currentBusiness?.email}</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="font-bold">Bill to</p>
+                <div className="space-y-1">
+                  <p>{invoice.customerDetails.name}</p>
+                  <div className="text-muted-foreground">
+                    <p>{invoice.customerDetails.contact}</p>
+                    <p>{invoice.customerDetails.location}</p>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Line Items */}
-            <div>
-              <h3 className="font-semibold mb-4">Services & Materials</h3>
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-muted">
-                    <tr>
-                      <th className="text-left p-3">Description</th>
-                      <th className="text-center p-3">Qty</th>
-                      <th className="text-right p-3">Unit Price</th>
-                      <th className="text-right p-3">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoice.lineItems.map((item: any, index: number) => (
-                      <tr key={index} className="border-t">
-                        <td className="p-3">{item.description}</td>
-                        <td className="text-center p-3">{item.quantity}</td>
-                        <td className="text-right p-3">UGX {item.unitPrice.toLocaleString()}</td>
-                        <td className="text-right p-3 font-medium">
-                          UGX {(item.quantity * item.unitPrice).toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {/* Summary sentence */}
+            <div className="text-2xl font-bold pt-4">
+              UGX {totalAmount.toLocaleString()} due {new Date(invoice.dueDate).toLocaleDateString("en-US", { month: 'long', day: 'numeric', year: 'numeric' })}
+            </div>
+
+            {/* Table */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-12 pb-2 border-b border-black text-sm text-muted-foreground">
+                <div className="col-span-6">Description</div>
+                <div className="col-span-2 text-right">Qty</div>
+                <div className="col-span-2 text-right">Unit price</div>
+                <div className="col-span-2 text-right">Amount</div>
+              </div>
+              <div className="space-y-4">
+                {(invoice.lineItems || []).map((item: any, index: number) => (
+                  <div key={index} className="grid grid-cols-12 text-sm py-1">
+                    <div className="col-span-6 font-medium">{item.description}</div>
+                    <div className="col-span-2 text-right text-muted-foreground">{item.quantity}</div>
+                    <div className="col-span-2 text-right text-muted-foreground">UGX {item.unitPrice.toLocaleString()}</div>
+                    <div className="col-span-2 text-right font-medium">UGX {(item.quantity * item.unitPrice).toLocaleString()}</div>
+                  </div>
+                ))}
               </div>
             </div>
 
             {/* Totals */}
-            <div className="flex justify-end">
-              <div className="w-64 space-y-2">
-                <div className="flex justify-between">
-                  <span>Subtotal:</span>
-                  <span>UGX {subTotal.toLocaleString()}</span>
+            <div className="flex justify-end pt-4">
+              <div className="w-64 space-y-3 text-sm">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Subtotal</span>
+                  <span className="text-foreground">UGX {subTotal.toLocaleString()}</span>
                 </div>
                 {invoice.includeTax && (
-                  <div className="flex justify-between">
-                    <span>Tax (18%):</span>
-                    <span>UGX {taxAmount.toLocaleString()}</span>
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Tax (18%)</span>
+                    <span className="text-foreground">UGX {taxAmount.toLocaleString()}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-semibold text-lg border-t pt-2">
-                  <span>Total:</span>
-                  <span>UGX {totalAmount.toLocaleString()}</span>
+                <div className="flex justify-between text-muted-foreground border-t pt-3">
+                  <span>Total</span>
+                  <span className="text-foreground">UGX {totalAmount.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between text-green-600">
-                  <span>Amount Paid:</span>
-                  <span>UGX {(invoice.amountPaid || 0).toLocaleString()}</span>
-                </div>
-                <div
-                  className={`flex justify-between font-semibold ${balanceDue > 0 ? "text-red-600" : "text-green-600"}`}
-                >
-                  <span>Balance Due:</span>
+                <div className="flex justify-between font-bold text-base pt-1">
+                  <span>Amount due</span>
                   <span>UGX {balanceDue.toLocaleString()}</span>
                 </div>
               </div>
@@ -365,9 +413,9 @@ export default function WeldingInvoiceDetailPage() {
 
             {/* Notes */}
             {invoice.notes && (
-              <div>
-                <h3 className="font-semibold mb-2">Notes:</h3>
-                <p className="text-sm text-muted-foreground">{invoice.notes}</p>
+              <div className="pt-8 border-t text-sm">
+                <p className="font-bold mb-2">Notes</p>
+                <p className="text-muted-foreground whitespace-pre-line">{invoice.notes}</p>
               </div>
             )}
           </CardContent>
@@ -376,7 +424,7 @@ export default function WeldingInvoiceDetailPage() {
 
       {/* Payment History */}
       {invoice.paymentsMade && invoice.paymentsMade.length > 0 && (
-        <Card>
+        <Card className="no-print">
           <CardHeader>
             <CardTitle>Payment History</CardTitle>
           </CardHeader>

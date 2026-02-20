@@ -1,54 +1,108 @@
-"use client"
+/* eslint-disable @typescript-eslint/no-unused-vars */
+"use client";
 
-import { useState } from "react"
-import { ArrowLeft, Save, Package, DollarSign, Hash, Tag, AlertCircle } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
-import { useToast } from "@/components/ui/use-toast"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react";
+import {
+  ArrowLeft,
+  Save,
+  Package,
+  DollarSign,
+  Hash,
+  Tag,
+  AlertCircle,
+  QrCode,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
+import { useSupplier } from "@/context/SupplierContext";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/use-toast";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { formatNumberWithCommas, parseFormattedNumber } from "@/lib/utils";
+import { useData } from "@/context/DataContext";
+import { useAuth } from "@/context/AuthContext";
+import QrCodeScanner from "@/components/pos/qr-code-scanner";
 
 export default function AddItemPage() {
-  const { toast } = useToast()
-  const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
+  const { toast } = useToast();
+  const router = useRouter();
+  const { createItem } = useData();
+  const { currentBranchId } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
 
+  const { suppliers, fetchSuppliers } = useSupplier();
   const [formData, setFormData] = useState({
     name: "",
     sellingPrice: "",
     costPrice: "",
     stockQuantity: "",
     category: "",
-    productType: "stock" as "stock" | "service" | "combo",
+    productType: "retail" as
+      | "retail"
+      | "service"
+      | "combo"
+      | "processed"
+      | "raw_material",
     unit: "",
     barcode: "",
     description: "",
-  })
+    supplierId: "",
+  });
 
-  const categories = ["Food", "Hygiene", "Electronics", "Clothing", "Other"]
+  useEffect(() => {
+    fetchSuppliers();
+  }, [fetchSuppliers]);
+
+  const [formattedValues, setFormattedValues] = useState({
+    sellingPrice: "",
+    costPrice: "",
+    stockQuantity: "",
+  });
+
+  const categories = ["Food", "Hygiene", "Electronics", "Clothing", "Other"];
 
   const calculateProfitMetrics = () => {
-    const selling = Number.parseFloat(formData.sellingPrice) || 0
-    const cost = Number.parseFloat(formData.costPrice) || 0
+    const selling = parseFormattedNumber(formData.sellingPrice) || 0;
+    const cost = parseFormattedNumber(formData.costPrice) || 0;
     if (selling > 0 && cost > 0) {
-      const profitPerUnit = selling - cost
-      const profitMargin = (profitPerUnit / selling) * 100
-      return { profitPerUnit, profitMargin }
+      const profitPerUnit = selling - cost;
+      const profitMargin = (profitPerUnit / selling) * 100;
+      return { profitPerUnit, profitMargin };
     }
-    return { profitPerUnit: 0, profitMargin: 0 }
-  }
+    return { profitPerUnit: 0, profitMargin: 0 };
+  };
 
-  const { profitPerUnit, profitMargin } = calculateProfitMetrics()
+  const { profitPerUnit, profitMargin } = calculateProfitMetrics();
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-  }
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleNumericInputChange = (field: string, value: string) => {
+    const formatted = formatNumberWithCommas(value);
+    setFormattedValues((prev) => ({ ...prev, [field]: formatted }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
@@ -56,58 +110,75 @@ export default function AddItemPage() {
         title: "Error",
         description: "Please enter item name",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
-    if (!formData.sellingPrice.trim() || isNaN(Number.parseFloat(formData.sellingPrice))) {
+    if (
+      !formData.sellingPrice.trim() ||
+      isNaN(parseFormattedNumber(formData.sellingPrice))
+    ) {
       toast({
         title: "Error",
         description: "Please enter a valid selling price",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
-    if (formData.costPrice && isNaN(Number.parseFloat(formData.costPrice))) {
+    if (formData.costPrice && isNaN(parseFormattedNumber(formData.costPrice))) {
       toast({
         title: "Error",
         description: "Please enter a valid cost price",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
-    if (formData.stockQuantity && isNaN(Number.parseInt(formData.stockQuantity))) {
+    if (
+      formData.stockQuantity &&
+      isNaN(parseFormattedNumber(formData.stockQuantity))
+    ) {
       toast({
         title: "Error",
         description: "Please enter a valid stock quantity",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const itemData = {
+        name: formData.name,
+        sellingPrice: parseFormattedNumber(formData.sellingPrice),
+        purchasePrice: parseFormattedNumber(formData.costPrice),
+        stockQuantity: parseFormattedNumber(formData.stockQuantity),
+        category: formData.category,
+        productType: formData.productType,
+        unit: formData.unit,
+        // barcode: formData.barcode,
+        barcode: formData.barcode || undefined,
+        description: formData.description,
+        supplierId: formData.supplierId || undefined,
+      };
+      await createItem(itemData);
 
       toast({
         title: "Success",
         description: "Item added successfully",
-      })
-      router.push("/inventory")
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      });
+      router.push("/inventory");
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to add item. Please try again.",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="container mx-auto p-6 max-w-4xl">
@@ -120,7 +191,9 @@ export default function AddItemPage() {
         </Link>
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Add New Item</h1>
-          <p className="text-gray-600">Create a new product for your inventory</p>
+          <p className="text-gray-600">
+            Create a new product for your inventory
+          </p>
         </div>
       </div>
 
@@ -152,13 +225,15 @@ export default function AddItemPage() {
                 <Select
                   value={formData.productType}
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  onValueChange={(value: any) => handleInputChange("productType", value)}
+                  onValueChange={(value: any) =>
+                    handleInputChange("productType", value)
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="stock">Stock Item</SelectItem>
+                    <SelectItem value="retail">Stock Item</SelectItem>
                     <SelectItem value="service">Service</SelectItem>
                     <SelectItem value="combo">Combo</SelectItem>
                   </SelectContent>
@@ -171,8 +246,24 @@ export default function AddItemPage() {
                   id="description"
                   placeholder="Enter item description"
                   value={formData.description}
-                  onChange={(e) => handleInputChange("description", e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("description", e.target.value)
+                  }
                   rows={3}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="supplier">Supplier (Optional)</Label>
+                <Combobox
+                  options={suppliers.map((supplier) => ({
+                    label: supplier.name,
+                    value: supplier.id,
+                  }))}
+                  value={formData.supplierId}
+                  onChange={(value) => handleInputChange("supplierId", value)}
+                  placeholder="Select a supplier"
+                  emptyMessage="No supplier found."
                 />
               </div>
             </CardContent>
@@ -191,10 +282,12 @@ export default function AddItemPage() {
                 <Label htmlFor="sellingPrice">Selling Price (UGX) *</Label>
                 <Input
                   id="sellingPrice"
-                  type="number"
+                  type="text"
                   placeholder="Enter selling price"
-                  value={formData.sellingPrice}
-                  onChange={(e) => handleInputChange("sellingPrice", e.target.value)}
+                  value={formattedValues.sellingPrice}
+                  onChange={(e) =>
+                    handleNumericInputChange("sellingPrice", e.target.value)
+                  }
                 />
               </div>
 
@@ -203,12 +296,16 @@ export default function AddItemPage() {
                   <Label htmlFor="costPrice">Cost Price (UGX)</Label>
                   <Input
                     id="costPrice"
-                    type="number"
+                    type="text"
                     placeholder="Enter cost price"
-                    value={formData.costPrice}
-                    onChange={(e) => handleInputChange("costPrice", e.target.value)}
+                    value={formattedValues.costPrice}
+                    onChange={(e) =>
+                      handleNumericInputChange("costPrice", e.target.value)
+                    }
                   />
-                  <p className="text-sm text-gray-600 mt-1">Used to calculate profit margins and analytics</p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Used to calculate profit margins and analytics
+                  </p>
                 </div>
               )}
 
@@ -216,20 +313,26 @@ export default function AddItemPage() {
               {formData.productType !== "service" &&
                 formData.sellingPrice &&
                 formData.costPrice &&
-                Number.parseFloat(formData.sellingPrice) > 0 &&
-                Number.parseFloat(formData.costPrice) > 0 && (
+                parseFormattedNumber(formData.sellingPrice) > 0 &&
+                parseFormattedNumber(formData.costPrice) > 0 && (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-green-800 mb-2">Profit Analysis</h4>
+                    <h4 className="font-semibold text-green-800 mb-2">
+                      Profit Analysis
+                    </h4>
                     <div className="space-y-1 text-sm">
                       <div className="flex justify-between">
                         <span>Profit per unit:</span>
-                        <span className={`font-semibold ${profitPerUnit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        <span
+                          className={`font-semibold ${profitPerUnit >= 0 ? "text-green-600" : "text-red-600"}`}
+                        >
                           UGX {profitPerUnit.toLocaleString()}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span>Profit margin:</span>
-                        <span className={`font-semibold ${profitMargin >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        <span
+                          className={`font-semibold ${profitMargin >= 0 ? "text-green-600" : "text-red-600"}`}
+                        >
                           {profitMargin.toFixed(1)}%
                         </span>
                       </div>
@@ -253,13 +356,16 @@ export default function AddItemPage() {
                   <Label htmlFor="stockQuantity">Stock Quantity</Label>
                   <Input
                     id="stockQuantity"
-                    type="number"
+                    type="text"
                     placeholder="Enter stock quantity"
-                    value={formData.stockQuantity}
-                    onChange={(e) => handleInputChange("stockQuantity", e.target.value)}
+                    value={formattedValues.stockQuantity}
+                    onChange={(e) =>
+                      handleNumericInputChange("stockQuantity", e.target.value)
+                    }
                   />
                   <p className="text-sm text-gray-600 mt-1">
-                    Leave empty if you don&apos;t want to track inventory for this item
+                    Leave empty if you don&apos;t want to track inventory for
+                    this item. Supports decimal values (e.g., 1.5, 2.25)
                   </p>
                 </div>
 
@@ -275,12 +381,25 @@ export default function AddItemPage() {
 
                 <div>
                   <Label htmlFor="barcode">Barcode</Label>
-                  <Input
-                    id="barcode"
-                    placeholder="Enter barcode (optional)"
-                    value={formData.barcode}
-                    onChange={(e) => handleInputChange("barcode", e.target.value)}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="barcode"
+                      placeholder="Enter barcode (optional)"
+                      value={formData.barcode}
+                      onChange={(e) =>
+                        handleInputChange("barcode", e.target.value)
+                      }
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowBarcodeScanner(true)}
+                    >
+                      <QrCode className="w-4 h-4 mr-2" />
+                      Scan
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -301,7 +420,12 @@ export default function AddItemPage() {
                     key={cat}
                     variant={formData.category === cat ? "default" : "outline"}
                     size="sm"
-                    onClick={() => handleInputChange("category", formData.category === cat ? "" : cat)}
+                    onClick={() =>
+                      handleInputChange(
+                        "category",
+                        formData.category === cat ? "" : cat
+                      )
+                    }
                   >
                     {cat}
                   </Button>
@@ -313,7 +437,9 @@ export default function AddItemPage() {
                   id="customCategory"
                   placeholder="Enter custom category"
                   value={formData.category}
-                  onChange={(e) => handleInputChange("category", e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("category", e.target.value)
+                  }
                   maxLength={20}
                 />
               </div>
@@ -330,36 +456,57 @@ export default function AddItemPage() {
             <CardContent>
               <div className="space-y-3">
                 <div>
-                  <h3 className="font-semibold text-lg">{formData.name || "Item Name"}</h3>
+                  <h3 className="font-semibold text-lg">
+                    {formData.name || "Item Name"}
+                  </h3>
                   <Badge variant="secondary">
-                    {formData.productType.charAt(0).toUpperCase() + formData.productType.slice(1)}
+                    {formData.productType
+                      ? formData.productType.charAt(0).toUpperCase() +
+                        formData.productType.slice(1)
+                      : "Retail"}
                   </Badge>
                 </div>
 
                 <div className="text-2xl font-bold text-primary">
-                  UGX {formData.sellingPrice ? Number.parseFloat(formData.sellingPrice).toLocaleString() : "0"}
+                  UGX{" "}
+                  {formData.sellingPrice
+                    ? parseFormattedNumber(
+                        formData.sellingPrice
+                      ).toLocaleString()
+                    : "0"}
                   {formData.unit ? ` per ${formData.unit}` : ""}
                 </div>
 
                 {formData.productType !== "service" && formData.costPrice && (
                   <div className="text-sm text-gray-600">
-                    Cost: UGX {Number.parseFloat(formData.costPrice).toLocaleString()}
+                    Cost: UGX{" "}
+                    {parseFormattedNumber(formData.costPrice).toLocaleString()}
                   </div>
                 )}
 
-                {formData.productType !== "service" && formData.stockQuantity && (
-                  <div className="text-sm text-gray-600">
-                    Stock: {formData.stockQuantity} {formData.unit || ""}
-                  </div>
+                {formData.productType !== "service" &&
+                  formData.stockQuantity && (
+                    <div className="text-sm text-gray-600">
+                      Stock:{" "}
+                      {parseFormattedNumber(formData.stockQuantity).toFixed(2)}{" "}
+                      {formData.unit || ""}
+                    </div>
+                  )}
+
+                {formData.category && (
+                  <Badge variant="outline">{formData.category}</Badge>
                 )}
 
-                {formData.category && <Badge variant="outline">{formData.category}</Badge>}
-
-                {formData.description && <p className="text-sm text-gray-600 mt-2">{formData.description}</p>}
+                {formData.description && (
+                  <p className="text-sm text-gray-600 mt-2">
+                    {formData.description}
+                  </p>
+                )}
 
                 {formData.productType !== "service" && profitPerUnit > 0 && (
                   <div className="text-sm text-green-600 font-semibold">
-                    Profit: UGX {profitPerUnit.toLocaleString()} per {formData.unit || "item"}
+                    Profit: UGX {profitPerUnit.toLocaleString()} per{" "}
+                    {formData.unit || "item"}
                   </div>
                 )}
               </div>
@@ -369,14 +516,50 @@ export default function AddItemPage() {
           {/* Validation Warnings */}
           {formData.costPrice &&
             formData.sellingPrice &&
-            Number.parseFloat(formData.sellingPrice) <= Number.parseFloat(formData.costPrice) && (
+            parseFormattedNumber(formData.sellingPrice) <=
+              parseFormattedNumber(formData.costPrice) && (
               <Alert>
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>Warning: Selling price should be higher than cost price for profit</AlertDescription>
+                <AlertDescription>
+                  Warning: Selling price should be higher than cost price for
+                  profit
+                </AlertDescription>
               </Alert>
             )}
         </div>
       </div>
+
+      {/* Barcode Scanner Dialog */}
+      <Dialog open={showBarcodeScanner} onOpenChange={setShowBarcodeScanner}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <QrCode className="h-5 w-5 text-primary" />
+              <span>Scan Product Barcode</span>
+            </DialogTitle>
+          </DialogHeader>
+          {showBarcodeScanner && (
+            <div className="p-4 bg-black rounded-xl overflow-hidden min-h-[300px] flex items-center justify-center">
+              <QrCodeScanner
+                onScanSuccess={(barcode) => {
+                  handleInputChange("barcode", barcode);
+                  setShowBarcodeScanner(false);
+                  toast({
+                    title: "Barcode Scanned",
+                    description: `Barcode ${barcode} has been entered.`,
+                  });
+                }}
+                onScanFailure={(error) => {
+                  // console.warn(error);
+                }}
+              />
+            </div>
+          )}
+          <div className="text-center text-sm text-gray-600">
+            Point your camera at a product barcode
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Save Button */}
       <div className="flex justify-end gap-4 mt-8 pt-6 border-t">
@@ -393,5 +576,5 @@ export default function AddItemPage() {
         </Button>
       </div>
     </div>
-  )
+  );
 }

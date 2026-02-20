@@ -54,3 +54,44 @@ export const safeParseNumber = (value: any): number => {
   const num = Number(value);
   return isNaN(num) ? 0 : num;
 };
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const parseAllNumbers = (data: any): any => {
+  const numericKeys = [
+    "quantity",
+    "unitPrice",
+    "total",
+    "subTotal",
+    "taxRate",
+    "taxAmount",
+    "totalAmount",
+    "amount",
+    "amountPaid",
+    "balanceDue",
+    "estimatedCost",
+    "costPerUnit",
+    "quantityInStock",
+    "lowStockThreshold",
+  ];
+
+  if (Array.isArray(data)) {
+    return data.map((item) => parseAllNumbers(item));
+  }
+
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    return Object.keys(data).reduce<{ [key: string]: unknown }>((acc, key) => {
+      const value = data[key];
+      if (numericKeys.includes(key) && (typeof value === 'string' || typeof value === 'number')) {
+        const parsedValue = typeof value === 'string' ? parseFloat(value) : value;
+        acc[key] = isNaN(parsedValue) ? 0 : parsedValue;
+      } else if (typeof value === "object") {
+        acc[key] = parseAllNumbers(value);
+      } else {
+        acc[key] = value;
+      }
+      return acc;
+    }, {});
+  }
+
+  return data;
+};

@@ -1,9 +1,9 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,18 +33,15 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCredit } from "@/context/CreditContext";
 import { toast } from "@/hooks/use-toast";
-import type { PaymentMethod } from "@/src/types/credit";
+import type { CreditEntry, PaymentMethod } from "@/src/types/credit";
 
 export default function RecordPaymentPage() {
   const router = useRouter();
   const params = useParams();
-  const searchParams = useSearchParams();
   const { recordPayment, getCreditEntryById, loading } = useCredit();
-  const [creditEntry, setCreditEntry] = useState<any>(null);
+  const [creditEntry, setCreditEntry] = useState<CreditEntry | null>(null);
   const [paymentDate, setPaymentDate] = useState<Date>(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [loadingEntry, setLoadingEntry] = useState(true);
   const [formData, setFormData] = useState({
     amountPaid: "",
     paymentMethod: "" as PaymentMethod | "",
@@ -52,41 +49,34 @@ export default function RecordPaymentPage() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const currentBalance = Number.parseFloat(searchParams.get("balance") || "0");
-  const customerName = searchParams.get("customerName") || "";
-
-  // Load credit entry details
-  useEffect(() => {
-    const loadCreditEntry = async () => {
-      try {
-        setLoadingEntry(true);
-        const entry = await getCreditEntryById(params.id as string);
-        if (!entry) {
-          toast({
-            title: "Error",
-            description: "Credit entry not found.",
-            variant: "destructive",
-          });
-          router.back();
-          return;
-        }
-        setCreditEntry(entry);
-      } catch (error) {
+  const loadCreditEntry = useCallback(async () => {
+    try {
+      const entry = await getCreditEntryById(params.id as string);
+      if (!entry) {
         toast({
           title: "Error",
-          description: "Failed to load credit entry.",
+          description: "Credit entry not found.",
           variant: "destructive",
         });
         router.back();
-      } finally {
-        setLoadingEntry(false);
+        return;
       }
-    };
+      setCreditEntry(entry);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load credit entry.",
+        variant: "destructive",
+      });
+      router.back();
+    }
+  }, [params.id, getCreditEntryById, router]);
 
+  useEffect(() => {
     if (params.id) {
       loadCreditEntry();
     }
-  }, [params.id, getCreditEntryById, router]);
+  }, [params.id, loadCreditEntry]);
 
   const handleInputChange = (field: keyof typeof formData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -101,8 +91,10 @@ export default function RecordPaymentPage() {
     const paidAmount = Number.parseFloat(formData.amountPaid);
     if (isNaN(paidAmount) || paidAmount <= 0) {
       newErrors.amountPaid = "Please enter a valid amount";
-    } else if (paidAmount > (creditEntry?.balance || currentBalance)) {
-      newErrors.amountPaid = `Amount cannot exceed balance of ${formatCurrency(creditEntry?.balance || currentBalance)}`;
+    } else if (creditEntry && paidAmount > creditEntry.balance) {
+      newErrors.amountPaid = `Amount cannot exceed balance of ${formatCurrency(
+        creditEntry.balance
+      )}`;
     }
 
     if (!formData.paymentMethod) {
@@ -120,7 +112,6 @@ export default function RecordPaymentPage() {
   const handleSavePayment = async () => {
     if (!validateForm()) return;
 
-    setSaving(true);
     try {
       await recordPayment({
         creditEntryId: params.id as string,
@@ -142,8 +133,6 @@ export default function RecordPaymentPage() {
         description: error.message || "Failed to record payment.",
         variant: "destructive",
       });
-    } finally {
-      setSaving(false);
     }
   };
   const formatCurrency = (amount: number) => {
@@ -162,7 +151,7 @@ export default function RecordPaymentPage() {
     { value: "other", label: "Card Payment" },
   ];
 
-  if (loadingEntry) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -173,23 +162,20 @@ export default function RecordPaymentPage() {
     );
   }
 
-  if (!creditEntry && !currentBalance) {
+  if (!creditEntry) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Missing Information</h2>
+          <h2 className="text-xl font-semibold mb-2">Credit Entry Not Found</h2>
           <p className="text-muted-foreground mb-4">
-            Essential information for recording payment is missing.
+            The requested credit entry could not be found.
           </p>
           <Button onClick={() => router.back()}>Go Back</Button>
         </div>
       </div>
     );
   }
-
-  const displayBalance = creditEntry?.balance || currentBalance;
-  const displayCustomerName = creditEntry?.customerName || customerName;
 
   return (
     <div className="container mx-auto p-6 max-w-2xl space-y-6">
@@ -217,13 +203,13 @@ export default function RecordPaymentPage() {
             <div className="flex justify-between">
               <span className="text-blue-700">Customer:</span>
               <span className="font-semibold text-blue-900">
-                {displayCustomerName}
+                {creditEntry.customerName}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-blue-700">Current Balance:</span>
               <span className="font-bold text-red-600 text-lg">
-                {formatCurrency(displayBalance)}
+                {formatCurrency(creditEntry.balance)}
               </span>
             </div>
           </div>
@@ -244,7 +230,7 @@ export default function RecordPaymentPage() {
               placeholder="Enter payment amount"
               value={formData.amountPaid}
               onChange={(e) => handleInputChange("amountPaid", e.target.value)}
-              max={displayBalance}
+              max={creditEntry.balance}
               min="0"
               step="0.01"
               className={errors.amountPaid ? "border-red-500" : ""}
@@ -253,7 +239,7 @@ export default function RecordPaymentPage() {
               <p className="text-sm text-red-500">{errors.amountPaid}</p>
             )}
             <p className="text-xs text-muted-foreground">
-              Maximum: {formatCurrency(displayBalance)}
+              Maximum: {formatCurrency(creditEntry.balance)}
             </p>
           </div>
 
@@ -352,14 +338,17 @@ export default function RecordPaymentPage() {
                 <span className="text-green-700">Remaining Balance:</span>
                 <span className="font-semibold text-green-900">
                   {formatCurrency(
-                    displayBalance - Number.parseFloat(formData.amountPaid)
+                    creditEntry.balance -
+                      Number.parseFloat(formData.amountPaid)
                   )}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-green-700">New Status:</span>
                 <span className="font-semibold text-green-900">
-                  {displayBalance - Number.parseFloat(formData.amountPaid) === 0
+                  {creditEntry.balance -
+                    Number.parseFloat(formData.amountPaid) ===
+                  0
                     ? "Paid"
                     : "Partially Paid"}
                 </span>
@@ -374,12 +363,12 @@ export default function RecordPaymentPage() {
         <Button
           variant="outline"
           onClick={() => router.back()}
-          disabled={saving}
+          disabled={loading}
         >
           Cancel
         </Button>
-        <Button onClick={handleSavePayment} disabled={saving || loading}>
-          {saving ? (
+        <Button onClick={handleSavePayment} disabled={loading}>
+          {loading ? (
             <>
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
               Recording...

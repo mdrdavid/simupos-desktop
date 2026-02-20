@@ -1,28 +1,31 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client"
 
 import { useState, useEffect } from "react"
-import { ArrowLeft, Package, TrendingUp, AlertTriangle, FileText, FileSpreadsheet, Calendar } from "lucide-react"
+import { ArrowLeft, Package, TrendingUp, AlertTriangle, FileText, FileSpreadsheet, Calendar, TrendingDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useData, type Item } from "@/context/DataContext"
+import { useData, type Item, StockMovement } from "@/context/DataContext"
 import { formatCurrency } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
 import Link from "next/link"
-
-interface StockMovement {
-  id: string
-  type: "in" | "out" | "adjustment" | "initial"
-  quantity: number
-  previousStock: number
-  newStock: number
-  reason?: string
-  createdAt: string
-  item?: Item
-}
+import { generateExcelFile, generatePdfFile } from "@/src/utils/exportUtils"
+import { useBranch } from "@/context/BranchContext"
 
 export default function InventoryAnalysisPage() {
-  const { items } = useData()
+  const {
+    items,
+    stockMovements,
+    getStockMovements,
+    stockSummary,
+    getLowStockItems,
+    getOutOfStockItems,
+    getStockValue,
+    getAllBranchItems,
+    loading
+  } = useData()
+  const { currentBranch } = useBranch()
   const { toast } = useToast()
   const [selectedPeriod, setSelectedPeriod] = useState<"day" | "week" | "month" | "quarter" | "year">("week")
   const [selectedItem, setSelectedItem] = useState<string | undefined>(undefined)
@@ -30,32 +33,26 @@ export default function InventoryAnalysisPage() {
   const [isExporting, setIsExporting] = useState(false)
   const [exportType, setExportType] = useState<"excel" | "pdf" | null>(null)
 
-  // Mock data for stock movements
   useEffect(() => {
-    const mockMovements: StockMovement[] = [
-      {
-        id: "1",
-        type: "in",
-        quantity: 50,
-        previousStock: 20,
-        newStock: 70,
-        reason: "Stock replenishment",
-        createdAt: new Date().toISOString(),
-        item: items[0],
-      },
-      {
-        id: "2",
-        type: "out",
-        quantity: 5,
-        previousStock: 70,
-        newStock: 65,
-        reason: "Sale transaction",
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-        item: items[0],
-      },
-    ]
-    setMovements(mockMovements)
-  }, [items])
+    const fetchMovements = async () => {
+      try {
+        const result = await getStockMovements({
+          itemId: selectedItem,
+          // You can add more filters here based on selectedPeriod if your backend supports it
+        });
+        setMovements(result);
+      } catch (error) {
+        console.error("Error fetching movements:", error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch stock movements.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchMovements();
+  }, [selectedItem, selectedPeriod, getStockMovements]);
 
   const periods = [
     { key: "day", label: "Today", icon: Calendar },
@@ -65,47 +62,49 @@ export default function InventoryAnalysisPage() {
     { key: "year", label: "Year", icon: Calendar },
   ]
 
-  const lowStockItems = items.filter(
-    (item) => item.stockQuantity !== undefined && item.stockQuantity < 10 && item.productType !== "service",
-  )
-  const outOfStockItems = items.filter((item) => item.stockQuantity === 0 && item.productType !== "service")
-
-  const stockValue = items.reduce((total, item) => {
-    if (item.productType === "service" || !item.stockQuantity) return total
-    return total + item.sellingPrice * item.stockQuantity
-  }, 0)
-
-  const potentialProfit = items.reduce((total, item) => {
-    if (item.productType === "service" || !item.stockQuantity || !item.purchasePrice) return total
-    return total + (item.sellingPrice - item.purchasePrice) * item.stockQuantity
-  }, 0)
+  const lowStockItems = getLowStockItems()
+  const outOfStockItems = getOutOfStockItems()
+  const stockValue = getStockValue()
 
   const handleExport = async (type: "excel" | "pdf") => {
     setIsExporting(true)
     setExportType(type)
 
-    // Simulate export process
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    setIsExporting(false)
-    setExportType(null)
-
-    toast({
-      title: "Export Successful",
-      description: `Your inventory report has been generated as a ${type.toUpperCase()} file.`,
-    })
+    try {
+      const allItems = await getAllBranchItems()
+      if (type === 'excel') {
+        await generateExcelFile(movements, allItems, selectedPeriod, selectedItem, currentBranch || undefined)
+      } else {
+        await generatePdfFile(movements, allItems, selectedPeriod, selectedItem, currentBranch || undefined)
+      }
+      toast({
+        title: "Export Successful",
+        description: `Your inventory report has been generated as a ${type.toUpperCase()} file.`,
+      })
+    } catch (error) {
+      console.error(`Error exporting as ${type}:`, error)
+      toast({
+        title: "Export Failed",
+        description: `There was an error generating your ${type.toUpperCase()} file.`,
+        variant: "destructive",
+      })
+    } finally {
+      setIsExporting(false)
+      setExportType(null)
+    }
   }
 
   const getMovementIcon = (type: string) => {
     switch (type) {
       case "in":
+      case "production_output":
+      case "initial":
         return "↗️"
       case "out":
+      case "production_input":
         return "↘️"
       case "adjustment":
         return "🔄"
-      case "initial":
-        return "➕"
       default:
         return "❓"
     }
@@ -114,13 +113,14 @@ export default function InventoryAnalysisPage() {
   const getMovementColor = (type: string) => {
     switch (type) {
       case "in":
+      case "production_output":
+      case "initial":
         return "text-green-600"
       case "out":
+      case "production_input":
         return "text-red-600"
       case "adjustment":
         return "text-yellow-600"
-      case "initial":
-        return "text-blue-600"
       default:
         return "text-gray-600"
     }
@@ -175,18 +175,18 @@ export default function InventoryAnalysisPage() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{items.filter((item) => item.stockQuantity !== undefined).length}</div>
+            <div className="text-2xl font-bold">{stockSummary.totalItems}</div>
             <p className="text-xs text-muted-foreground">Tracked items</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Stock Value</CardTitle>
+            <CardTitle className="text-sm font-medium">Stock Value (Selling)</CardTitle>
             <TrendingUp className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stockValue)}</div>
-            <p className="text-xs text-muted-foreground">Total inventory value</p>
+            <div className="text-2xl font-bold">{formatCurrency(stockValue.selling)}</div>
+            <p className="text-xs text-muted-foreground">Total selling value</p>
           </CardContent>
         </Card>
         <Card>
@@ -195,7 +195,7 @@ export default function InventoryAnalysisPage() {
             <TrendingUp className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(potentialProfit)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stockValue.profit)}</div>
             <p className="text-xs text-muted-foreground">If all stock sold</p>
           </CardContent>
         </Card>
@@ -273,14 +273,13 @@ export default function InventoryAnalysisPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-4">
-            <Select value={selectedItem} onValueChange={(value) => setSelectedItem(value === "" ? undefined : value)}>
+            <Select value={selectedItem || "all-items"} onValueChange={(value) => setSelectedItem(value === "all-items" ? undefined : value)}>
               <SelectTrigger className="flex-1">
                 <SelectValue placeholder="Select an item to filter" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Items</SelectItem>
+                <SelectItem value="all-items">All Items</SelectItem>
                 {items
-                  .filter((item) => item.stockQuantity !== undefined)
                   .map((item) => (
                     <SelectItem key={item.id} value={item.id}>
                       {item.name}

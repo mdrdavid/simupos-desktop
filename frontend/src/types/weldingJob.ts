@@ -35,7 +35,7 @@ export interface WeldingJob {
   activeInvoiceId?: string; // ID of the active WeldingInvoice
   // quoteId?: string; // Reference to SimuPOS quote - REMOVED for specific WelderQuote
   // invoiceId?: string; // Reference to SimuPOS invoice - REMOVED for specific WelderInvoice
-  assignedArtisans?: string[];
+  assignedArtisans?: { artisanId: string; wage?: number }[];
   imageUploads?: { stage: string; uri: string; timestamp: string }[]; // For job progress
   deliveryConfirmed?: boolean;
   customerRating?: number; // 1-5 stars

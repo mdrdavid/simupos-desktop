@@ -4,7 +4,7 @@ import { BarChart2, Phone, Smartphone, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import logo from "@/public/images/simupos-primary.png";
-// import { DownloadButton } from "../DownloadButton";
+// import { DownloadButton } from "../DownloadButton";;
 export function Header() {
   const navLinks = [
     {

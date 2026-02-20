@@ -240,15 +240,15 @@ export function BusinessTypes() {
 
             <div className="grid gap-6 md:grid-cols-3">
               <div className="text-center">
-                <div className="text-3xl font-bold text-[#41A5A5] mb-2">150+</div>
+                <div className="text-3xl font-bold text-[#41A5A5] mb-2">30+</div>
                 <div className="text-sm text-gray-600">Retail Shops</div>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold text-[#41A5A5] mb-2">80+</div>
+                <div className="text-3xl font-bold text-[#41A5A5] mb-2">20+</div>
                 <div className="text-sm text-gray-600">Restaurants & Cafes</div>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold text-[#41A5A5] mb-2">270+</div>
+                <div className="text-3xl font-bold text-[#41A5A5] mb-2">20+</div>
                 <div className="text-sm text-gray-600">Other Businesses</div>
               </div>
             </div>

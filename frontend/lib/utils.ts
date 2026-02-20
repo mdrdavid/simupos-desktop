@@ -10,8 +10,10 @@ export function formatNumber(num: number): string {
   return new Intl.NumberFormat("en-UG").format(num);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function formatCurrency(amount: number, currency = "UGX"): string {
-  return `${currency} ${formatNumber(amount)}`;
+  // return `${currency} ${formatNumber(amount)}`;
+  return `${formatNumber(amount)}`;
 }
 
 export function calculateChange(
@@ -75,4 +77,36 @@ export function debounce<T extends (...args: any[]) => any>(
 
 export function generateTransactionId(): string {
   return `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+}
+
+// Format number with commas for display in input fields
+export function formatNumberWithCommas(value: string): string {
+  // Remove any existing commas and non-numeric characters except decimal point
+  const cleaned = value.replace(/[^\d.]/g, '');
+  
+  // Split by decimal point
+  const parts = cleaned.split('.');
+  
+  // Add commas to the integer part
+  if (parts[0]) {
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+  
+  // Rejoin with decimal part if it exists
+  return parts.join('.');
+}
+
+// Parse formatted number back to numeric value
+export function parseFormattedNumber(value: string): number {
+  // Remove commas and parse as float
+  const cleaned = value.replace(/,/g, '');
+  return parseFloat(cleaned) || 0;
+}
+
+// Format number for display with commas and decimal places
+export function formatDisplayNumber(value: number, decimals: number = 2): string {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  }).format(value);
 }

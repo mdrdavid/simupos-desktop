@@ -1,4 +1,5 @@
 "use client";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -22,11 +23,33 @@ import {
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useBranch } from "@/context/BranchContext";
+import { SubscriptionStatusBadge } from "@/components/Subscription/SubscriptionStatusBadge";
 
 export function Header() {
   const router = useRouter();
   const { user, businessData, logout } = useAuth();
   const { currentBranch } = useBranch();
+  const [currentTime, setCurrentTime] = useState("");
+
+  useEffect(() => {
+    // Set time initially on the client
+    const updateTime = () => {
+      setCurrentTime(
+        new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      );
+    };
+
+    updateTime();
+
+    // Update time every minute
+    const intervalId = setInterval(updateTime, 60000);
+
+    // Cleanup interval on component unmount
+    return () => clearInterval(intervalId);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -63,6 +86,7 @@ export function Header() {
 
         {/* Right section - User info and controls */}
         <div className="flex items-center justify-between gap-2 w-full sm:w-auto">
+                <SubscriptionStatusBadge />
           {/* User and time info - hidden on smallest screens */}
           <div className="hidden xs:flex items-center gap-2 text-xs text-gray-500">
             <div className="flex items-center gap-1">
@@ -74,12 +98,7 @@ export function Header() {
             <span>•</span>
             <div className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              <span>
-                {new Date().toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </span>
+              {currentTime && <span>{currentTime}</span>}
             </div>
           </div>
 

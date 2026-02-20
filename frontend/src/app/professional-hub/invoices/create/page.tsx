@@ -193,7 +193,7 @@ export default function CreateWeldingInvoicePage() {
           activeInvoiceId: newInvoice.id,
           status: WeldingJobStatus.PENDING,
         });
-        router.push(`/welding/jobs/${jobId}?newInvoiceId=${newInvoice.id}`);
+        router.push(`/professional-hub/jobs/${jobId}?newInvoiceId=${newInvoice.id}`);
       }
     } catch (error) {
       console.error("Failed to create invoice:", error);
@@ -215,7 +215,7 @@ export default function CreateWeldingInvoicePage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link href={`/welding/jobs/${jobId}`}>
+        <Link href={`/professional-hub/jobs/${jobId}`}>
           <Button variant="outline" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -520,7 +520,7 @@ export default function CreateWeldingInvoicePage() {
 
       {/* Submit Button */}
       <div className="flex justify-end gap-4">
-        <Link href={`/welding/jobs/${jobId}`}>
+        <Link href={`/professional-hub/jobs/${jobId}`}>
           <Button variant="outline">Cancel</Button>
         </Link>
         <Button

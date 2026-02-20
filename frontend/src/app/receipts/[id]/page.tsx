@@ -7,6 +7,8 @@ import { ArrowLeft, Download, Mail, Printer, Share, Loader2 } from "lucide-react
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
+import { useBusiness } from "@/context/BusinessContext"
+import jsPDF from "jspdf"
 
 interface Transaction {
   id: string
@@ -58,10 +60,11 @@ export default function ReceiptPage() {
   const params = useParams()
   const router = useRouter()
   const { toast } = useToast()
+  const { currentBusiness } = useBusiness()
   const [transaction, setTransaction] = useState<Transaction | null>(null)
-  const [businessData] = useState<BusinessData>(mockBusinessData)
   const [loading, setLoading] = useState(true)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
+
 
   useEffect(() => {
     const fetchTransaction = async () => {
@@ -125,15 +128,104 @@ export default function ReceiptPage() {
   }
 
   const handleDownloadPDF = async () => {
+    if (!transaction) return;
+    
     setIsGeneratingPDF(true)
     try {
-      // Simulate PDF generation
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      const doc = new jsPDF();
+      
+      // Add logo if available
+      if (currentBusiness?.logo) {
+        try {
+          doc.addImage(currentBusiness.logo, 'PNG', 20, 20, 30, 20);
+        } catch (error) {
+          // Logo failed to load, continue without it
+        }
+      }
+      
+      // Business Details
+      const businessY = currentBusiness?.logo ? 50 : 30;
+      doc.setFontSize(16);
+      doc.text(currentBusiness?.name || "Business Name", 20, businessY);
+      doc.setFontSize(10);
+      if (currentBusiness?.address) {
+        doc.text(currentBusiness.address, 20, businessY + 8);
+      }
+      if (currentBusiness?.phone) {
+        doc.text(`Tel: ${currentBusiness.phone}`, 20, businessY + 16);
+      }
+      
+      // Receipt Title
+      doc.setFontSize(14);
+      doc.text("RECEIPT", 20, businessY + 30);
+      
+      // Receipt Details
+      doc.setFontSize(10);
+      const detailsY = businessY + 40;
+      doc.text(`Receipt #: ${transaction.transactionId}`, 20, detailsY);
+      doc.text(`Date: ${formatDate(transaction.timestamp)}`, 20, detailsY + 8);
+      doc.text(`Customer: ${transaction.customerName || "Walk-in Customer"}`, 20, detailsY + 16);
+      if (transaction.customerPhone) {
+        doc.text(`Phone: ${transaction.customerPhone}`, 20, detailsY + 24);
+      }
+      doc.text(`Payment: ${getPaymentMethodName(transaction.paymentMethod)}`, 20, detailsY + 32);
+      
+      // Items
+      const itemsY = detailsY + 45;
+      doc.setFontSize(12);
+      doc.text("ITEMS", 20, itemsY);
+      doc.setFontSize(10);
+      
+      let currentY = itemsY + 10;
+      
+      if (transaction.isCustomAmount) {
+        doc.text(transaction.customItemName || "Custom Sale", 20, currentY);
+        doc.text(formatCurrency(transaction.amount), 150, currentY);
+        currentY += 8;
+      } else if (transaction.items && transaction.items.length > 0) {
+        transaction.items.forEach((item) => {
+          doc.text(item.name, 20, currentY);
+          doc.text(`${item.quantity} x ${formatCurrency(item.price)}`, 20, currentY + 6);
+          doc.text(formatCurrency(item.price * item.quantity), 150, currentY);
+          currentY += 12;
+        });
+      } else {
+        doc.text("Sale Amount", 20, currentY);
+        doc.text(formatCurrency(transaction.amount), 150, currentY);
+        currentY += 8;
+      }
+      
+      // Totals
+      currentY += 10;
+      doc.text("Subtotal:", 20, currentY);
+      doc.text(formatCurrency(calculateSubtotal()), 150, currentY);
+      currentY += 8;
+      
+      doc.text("VAT (18%):", 20, currentY);
+      doc.text(formatCurrency(calculateTax()), 150, currentY);
+      currentY += 8;
+      
+      doc.setFont("bold");
+      doc.text("TOTAL:", 20, currentY);
+      doc.text(formatCurrency(transaction.amount), 150, currentY);
+      doc.setFont("normal");
+      
+      // Footer
+      currentY += 20;
+      doc.setFontSize(10);
+      doc.text("Thank you for your business!", 20, currentY);
+      doc.text("Powered by SimuPOS", 20, currentY + 8);
+      
+      // Save the PDF
+      const filename = `receipt-${transaction.transactionId}.pdf`;
+      doc.save(filename);
+      
       toast({
         title: "Success",
         description: "Receipt downloaded successfully!",
       })
     } catch (error) {
+      console.error("PDF generation error:", error);
       toast({
         title: "Error",
         description: "Failed to download receipt",
@@ -184,7 +276,7 @@ export default function ReceiptPage() {
   const generateReceiptText = () => {
     if (!transaction) return ""
 
-    let receiptText = `🧾 RECEIPT\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${businessData.name}\n${businessData.address}\n📞 ${businessData.phone}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nReceipt #: ${transaction.transactionId}\nDate: ${formatDate(transaction.timestamp)}\nCustomer: ${transaction.customerName || "Walk-in Customer"}\n${transaction.customerPhone ? `Phone: ${transaction.customerPhone}\n` : ""}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nITEMS:\n`
+    let receiptText = `🧾 RECEIPT\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${currentBusiness?.name || "Business Name"}\n${currentBusiness?.address || ""}\n📞 ${currentBusiness?.phone || ""}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nReceipt #: ${transaction.transactionId}\nDate: ${formatDate(transaction.timestamp)}\nCustomer: ${transaction.customerName || "Walk-in Customer"}\n${transaction.customerPhone ? `Phone: ${transaction.customerPhone}\n` : ""}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nITEMS:\n`
 
     if (transaction.isCustomAmount) {
       receiptText += `${transaction.customItemName || "Custom Sale"}: ${formatCurrency(transaction.amount)}\n`
@@ -226,6 +318,29 @@ export default function ReceiptPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Print Styles */}
+      <style jsx global>{`
+        @media print {
+          .print\\:hidden {
+            display: none !important;
+          }
+          .print\\:shadow-none {
+            box-shadow: none !important;
+          }
+          .print\\:border-none {
+            border: none !important;
+          }
+          body {
+            background: white !important;
+          }
+          .receipt-logo {
+            max-width: 80px !important;
+            max-height: 80px !important;
+            object-fit: contain !important;
+          }
+        }
+      `}</style>
+      
       {/* Header */}
       <div className="bg-teal-600 text-white p-4 print:hidden">
         <div className="flex items-center justify-between max-w-4xl mx-auto">
@@ -243,12 +358,30 @@ export default function ReceiptPage() {
           <CardContent className="p-8">
             {/* Business Header */}
             <div className="text-center mb-8">
-              <div className="w-24 h-24 bg-teal-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-teal-600">SP</span>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">{businessData.name}</h2>
-              <p className="text-gray-600">{businessData.address}</p>
-              <p className="text-gray-600">{businessData.phone}</p>
+              {currentBusiness?.logo ? (
+                <div className="w-24 h-24 mx-auto mb-4 flex items-center justify-center">
+                  <img 
+                    src={currentBusiness.logo} 
+                    alt="Business Logo" 
+                    className="max-w-full max-h-full object-contain rounded-lg receipt-logo"
+                    onError={(e) => {
+                      // Fallback to default icon if logo fails to load
+                      (e.target as HTMLImageElement).style.display = 'none';
+                      (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                    }}
+                  />
+                  <div className="w-24 h-24 bg-teal-100 rounded-full flex items-center justify-center hidden">
+                    <span className="text-2xl font-bold text-teal-600">SP</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-24 h-24 bg-teal-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl font-bold text-teal-600">SP</span>
+                </div>
+              )}
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">{currentBusiness?.name || "Business Name"}</h2>
+              <p className="text-gray-600">{currentBusiness?.address || ""}</p>
+              <p className="text-gray-600">{currentBusiness?.phone || ""}</p>
             </div>
 
             <div className="border-t border-gray-200 my-6" />

@@ -9,18 +9,18 @@ export interface CustomerSnapshot {
 }
 
 export enum QuoteStatus {
-  DRAFT = "Draft",
-  SENT = "Sent",
-  ACCEPTED = "Accepted",
-  DECLINED = "Declined",
-  INVOICED = "Invoiced", // When an invoice has been created from this quote
+  DRAFT = "DRAFT",
+  SENT = "SENT",
+  ACCEPTED = "ACCEPTED",
+  DECLINED = "DECLINED",
+  INVOICED = "INVOICED",
 }
 
 export enum InvoicePaymentStatus {
-  UNPAID = "Unpaid",
-  PARTIALLY_PAID = "Partially Paid",
-  PAID = "Paid",
-  OVERDUE = "Overdue",
+  UNPAID = "UNPAID",
+  PARTIALLY_PAID = "PARTIALLY_PAID",
+  PAID = "PAID",
+  OVERDUE = "OVERDUE",
 }
 
 export interface LineItem {
@@ -43,7 +43,7 @@ export interface Payment {
 
 export interface WeldingQuote {
   id: string; // Unique identifier for the quote
-  weldingJobId: string; // Link to the WeldingJob
+  weldingJobId?: string; // Link to the WeldingJob
   quoteNumber: string; // User-friendly or auto-generated quote number
   customerDetails: CustomerSnapshot;
   lineItems: LineItem[];
@@ -56,12 +56,12 @@ export interface WeldingQuote {
   status: QuoteStatus;
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
+  isStandalone: boolean;
 }
 
-
 export interface WeldingInvoice {
-  id: string; // Unique identifier for the invoice
-  weldingJobId: string; // Link to the WeldingJob
+  id:string; // Unique identifier for the invoice
+  weldingJobId?: string; // Link to the WeldingJob
   quoteId?: string; // Optional: if this invoice was generated from a quote
   invoiceNumber: string; // User-friendly or auto-generated invoice number
   customerDetails: CustomerSnapshot;
@@ -79,5 +79,6 @@ export interface WeldingInvoice {
   notes?: string; // e.g., payment terms, bank details
   createdAt: string;
   updatedAt: string;
-  includeTax?:boolean
+  includeTax?:boolean;
+  isStandalone: boolean;
 }

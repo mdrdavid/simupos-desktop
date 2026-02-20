@@ -7,7 +7,6 @@ import {
   useEffect,
   ReactNode,
 } from "react";
-// import AsyncStorage from "@react-native-async-storage/async-storage";
 import { httpClient } from "@/src/data/api/httpClient";
 import { useAuth } from "./AuthContext";
 
@@ -21,9 +20,10 @@ interface Business {
   applyVAT: boolean;
   vatRate?: number;
   currency: string;
-  logo?: string;
+  logo?: string | null;
+  hasLogo?: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  settings?: Record<string, any>;
+  settings?: Record<string, any> | null;
   receiptFooter?: string;
   businessType?: string;
   isDeleted: boolean;
@@ -86,8 +86,11 @@ export const BusinessProvider = ({ children }: BusinessProviderProps) => {
 
         if (storedBusiness && storedBusinessId) {
           setCurrentBusiness(storedBusiness);
+          setLoading(false);
+          return;
         }
 
+        // Only make API call if we don't have stored business data
         const headers = await getAuthHeaders();
         const data = await httpClient("/businesses", { headers });
 
@@ -102,6 +105,11 @@ export const BusinessProvider = ({ children }: BusinessProviderProps) => {
         }
 
       } catch (err) {
+        // If it's an auth error, don't set error state as httpClient will handle redirect
+        if (err instanceof Error && err.message.includes("No authentication token")) {
+          setLoading(false);
+          return;
+        }
         setError(err instanceof Error ? err.message : "Failed to load businesses");
       } finally {
         setLoading(false);

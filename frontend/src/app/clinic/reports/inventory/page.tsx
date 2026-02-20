@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useClinic } from "@/context/ClinicContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -23,9 +24,34 @@ export default function InventoryReportsPage() {
   })
   const [selectedPeriod, setSelectedPeriod] = useState<"daily" | "weekly" | "monthly">("monthly")
 
-  // Generate inventory report
-  const inventoryReport = generateReport("inventory", selectedPeriod, dateRange?.from, dateRange?.to)
-  const inventoryData = inventoryReport.data
+  // Generate inventory report (load async report and store data in state)
+    const [inventoryData, setInventoryData] = useState<any>({
+      totalValue: 0,
+      totalMedicines: medicines.length,
+      lowStockMedicines: [],
+      expiredMedicines: [],
+    })
+  
+    useEffect(() => {
+      let mounted = true
+  
+      async function loadReport() {
+        try {
+          const report = await generateReport("inventory", selectedPeriod, dateRange?.from, dateRange?.to)
+          if (!mounted) return
+          // prefer report.data when present, otherwise use report itself
+          setInventoryData(report?.data ?? report)
+        } catch (err) {
+          // fail silently; keep default inventoryData
+          // console.error(err)
+        }
+      }
+  
+      loadReport()
+      return () => {
+        mounted = false
+      }
+    }, [generateReport, selectedPeriod, dateRange?.from, dateRange?.to, medicines.length])
 
   // Medicine categories distribution
   const categoryStats = medicines.reduce(

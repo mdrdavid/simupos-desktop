@@ -33,7 +33,7 @@ export function CTA() {
             transition={{ delay: 0.2, duration: 0.8 }}
             className="text-xl md:text-2xl mb-8 opacity-90"
           >
-            Join <span className="font-semibold">500+</span> businesses using SimuPOS to
+            Join <span className="font-semibold">50+</span> businesses using SimuPOS to
             <span className="underline decoration-wavy"> boost sales by 30%</span>
           </motion.p>
 
@@ -82,7 +82,7 @@ export function CTA() {
             className="mt-8 text-sm opacity-80"
           >
             <span className="inline-block px-3 py-1 bg-white/10 rounded-full">
-              Simple, affordable pricing • Cancel anytime • Zero setup hassle
+              Simple, affordable pricing • No monthly fees • 24/7 Local Support
             </span>
           </motion.p>
         </motion.div>

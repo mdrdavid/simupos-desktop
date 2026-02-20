@@ -1,6 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-"use client"
-import React, { createContext, useContext, useState, ReactNode } from "react";
+"use client";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  ReactNode,
+  useCallback,
+} from "react";
 import { httpClient } from "@/src/data/api/httpClient";
 
 import {
@@ -29,15 +35,22 @@ interface CreditContextType {
     limit?: number;
   }) => Promise<{ creditEntries: CreditEntry[]; pagination: any }>;
   getCreditEntryById: (id: string) => Promise<CreditEntry>;
-  // recordPayment: (
-  //   paymentData: Omit<CreditPayment, "id" | "branchId" | "userId">
-  // ) => Promise<{ creditEntry: CreditEntry; payment: CreditPayment }>;
   recordPayment: (
-    paymentData: Omit<CreditPayment, "id" | "branchId" | "userId"> & { creditEntryId: string }
+    paymentData: Omit<CreditPayment, "id" | "branchId" | "userId"> & {
+      creditEntryId: string;
+    }
   ) => Promise<{ creditEntry: CreditEntry; payment: CreditPayment }>;
   getPaymentsForEntry: (creditEntryId: string) => Promise<CreditPayment[]>;
   getCreditAnalytics: () => Promise<any>;
   fetchCreditEntries: () => Promise<void>;
+  getAllCreditPayments: (filters?: {
+    page?: number;
+    limit?: number;
+  }) => Promise<{ payments: CreditPayment[]; pagination: any }>;
+  getOutstandingCreditEntries: (filters?: {
+    page?: number;
+    limit?: number;
+  }) => Promise<{ creditEntries: CreditEntry[]; pagination: any }>;
 }
 
 const CreditContext = createContext<CreditContextType | undefined>(undefined);
@@ -61,7 +74,7 @@ export const CreditProvider = ({ children }: CreditProviderProps) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchCreditEntries = async () => {
+  const fetchCreditEntries = useCallback(async () => {
     if (!currentBranchId) {
       setError("No branch selected");
       return;
@@ -82,192 +95,238 @@ export const CreditProvider = ({ children }: CreditProviderProps) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentBranchId, getAuthHeaders]);
 
-  const addCreditEntry = async (
-    entryData: Omit<
-      CreditEntry,
-      "id" | "status" | "amountPaid" | "balance" | "branchId" | "userId"
-    > & { items: OrderItem[] }
-  ) => {
-    if (!currentBranchId) {
-      setError("No branch selected");
-      throw new Error("No branch selected");
-    }
+  const getAllCreditPayments = useCallback(
+    async (filters?: { page?: number; limit?: number }) => {
+      if (!currentBranchId) {
+        setError("No branch selected");
+        throw new Error("No branch selected");
+      }
 
-    try {
-      setLoading(true);
-      const headers = await getAuthHeaders();
-      const response = await httpClient("/credits/entries", {
-        method: "POST",
-        body: JSON.stringify({
-          ...entryData,
+      try {
+        setLoading(true);
+        const headers = await getAuthHeaders();
+        const queryParams = new URLSearchParams();
+        if (filters?.page) queryParams.append("page", filters.page.toString());
+        if (filters?.limit)
+          queryParams.append("limit", filters.limit.toString());
+
+        const response = await httpClient(
+          `/credits/payments/branch/${currentBranchId}?${queryParams.toString()}`,
+          { headers }
+        );
+        setError(null);
+        return response;
+      } catch (err) {
+        setError("Failed to fetch credit payments");
+        console.error(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [currentBranchId, getAuthHeaders]
+  );
+
+  const getOutstandingCreditEntries = useCallback(
+    async (filters?: { page?: number; limit?: number }) => {
+      if (!currentBranchId) {
+        setError("No branch selected");
+        throw new Error("No branch selected");
+      }
+
+      try {
+        setLoading(true);
+        const headers = await getAuthHeaders();
+        const queryParams = new URLSearchParams();
+        if (filters?.page) queryParams.append("page", filters.page.toString());
+        if (filters?.limit)
+          queryParams.append("limit", filters.limit.toString());
+
+        const response = await httpClient(
+          `/credits/entries/branch/${currentBranchId}/outstanding?${queryParams.toString()}`,
+          { headers }
+        );
+        setError(null);
+        return response;
+      } catch (err) {
+        setError("Failed to fetch outstanding credit entries");
+        console.error(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [currentBranchId, getAuthHeaders]
+  );
+
+  const addCreditEntry = useCallback(
+    async (
+      entryData: Omit<
+        CreditEntry,
+        "id" | "status" | "amountPaid" | "balance" | "branchId" | "userId"
+      > & { items: OrderItem[] }
+    ) => {
+      if (!currentBranchId) {
+        setError("No branch selected");
+        throw new Error("No branch selected");
+      }
+
+      try {
+        setLoading(true);
+        const headers = await getAuthHeaders();
+        const response = await httpClient("/credits/entries", {
+          method: "POST",
+          body: JSON.stringify({
+            ...entryData,
+            branchId: currentBranchId,
+          }),
+          headers,
+        });
+        setCreditEntries((prev) => [response, ...prev]);
+        setError(null);
+        return response;
+      } catch (err) {
+        setError("Failed to add credit entry");
+        console.error(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [currentBranchId, getAuthHeaders]
+  );
+
+  const getCreditEntries = useCallback(
+    async (filters?: {
+      customerName?: string;
+      status?: CreditStatus;
+      page?: number;
+      limit?: number;
+    }) => {
+      if (!currentBranchId) {
+        setError("No branch selected");
+        throw new Error("No branch selected");
+      }
+
+      try {
+        setLoading(true);
+        const headers = await getAuthHeaders();
+        const queryParams = new URLSearchParams();
+        if (filters?.customerName)
+          queryParams.append("customerName", filters.customerName);
+        if (filters?.status) queryParams.append("status", filters.status);
+        if (filters?.page) queryParams.append("page", filters.page.toString());
+        if (filters?.limit)
+          queryParams.append("limit", filters.limit.toString());
+
+        const response = await httpClient(
+          `/credits/entries/branch/${currentBranchId}?${queryParams.toString()}`,
+          { headers }
+        );
+        setError(null);
+        return response;
+      } catch (err) {
+        setError("Failed to fetch credit entries");
+        console.error(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [currentBranchId, getAuthHeaders]
+  );
+
+  const getCreditEntryById = useCallback(
+    async (id: string) => {
+      try {
+        setLoading(true);
+        const headers = await getAuthHeaders();
+        const response = await httpClient(`/credits/entries/${id}`, {
+          headers,
+        });
+        setError(null);
+        return response;
+      } catch (err) {
+        setError("Failed to fetch credit entry");
+        console.error(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [getAuthHeaders]
+  );
+
+  const recordPayment = useCallback(
+    async (
+      paymentData: Omit<CreditPayment, "id" | "branchId" | "userId"> & {
+        creditEntryId: string;
+      }
+    ) => {
+      if (!currentBranchId) {
+        setError("No branch selected");
+        throw new Error("No branch selected");
+      }
+
+      try {
+        setLoading(true);
+        const headers = await getAuthHeaders();
+        const payload = {
+          ...paymentData,
           branchId: currentBranchId,
-        }),
-        headers,
-      });
-      setCreditEntries((prev) => [response, ...prev]);
-      setError(null);
-      return response;
-    } catch (err) {
-      setError("Failed to add credit entry");
-      console.error(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
+        };
 
-  const getCreditEntries = async (filters?: {
-    customerName?: string;
-    status?: CreditStatus;
-    page?: number;
-    limit?: number;
-  }) => {
-    if (!currentBranchId) {
-      setError("No branch selected");
-      throw new Error("No branch selected");
-    }
+        const response = await httpClient("/credits/payments", {
+          method: "POST",
+          body: JSON.stringify(payload),
+          headers,
+        });
 
-    try {
-      setLoading(true);
-      const headers = await getAuthHeaders();
-      const queryParams = new URLSearchParams();
-      if (filters?.customerName)
-        queryParams.append("customerName", filters.customerName);
-      if (filters?.status) queryParams.append("status", filters.status);
-      if (filters?.page) queryParams.append("page", filters.page.toString());
-      if (filters?.limit) queryParams.append("limit", filters.limit.toString());
+        setCreditEntries((prev) =>
+          prev.map((entry) =>
+            entry.id === response.creditEntry.id ? response.creditEntry : entry
+          )
+        );
+        setCreditPayments((prev) => [response.payment, ...prev]);
 
-      const response = await httpClient(
-        `/credits/entries/branch/${currentBranchId}?${queryParams.toString()}`,
-        { headers }
-      );
-      setError(null);
-      return response;
-    } catch (err) {
-      setError("Failed to fetch credit entries");
-      console.error(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
+        setError(null);
+        return response;
+      } catch (err) {
+        setError("Failed to record payment");
+        console.error(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [currentBranchId, getAuthHeaders]
+  );
 
-  const getCreditEntryById = async (id: string) => {
-    try {
-      setLoading(true);
-      const headers = await getAuthHeaders();
-      const response = await httpClient(`/credits/entries/${id}`, {
-        headers,
-      });
-      setError(null);
-      return response;
-    } catch (err) {
-      setError("Failed to fetch credit entry");
-      console.error(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
+  const getPaymentsForEntry = useCallback(
+    async (creditEntryId: string) => {
+      try {
+        setLoading(true);
+        const headers = await getAuthHeaders();
+        const response = await httpClient(
+          `/credits/payments/entry/${creditEntryId}`,
+          { headers }
+        );
+        setError(null);
+        return response;
+      } catch (err) {
+        setError("Failed to fetch payments");
+        console.error(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [getAuthHeaders]
+  );
 
-  const recordPayment = async (
-  paymentData: Omit<CreditPayment, "id" | "branchId" | "userId"> & { creditEntryId: string }
-) => {
-  if (!currentBranchId) {
-    setError("No branch selected");
-    throw new Error("No branch selected");
-  }
-
-  try {
-    setLoading(true);
-    const headers = await getAuthHeaders();
-    const response = await httpClient("/credits/payments", {
-      method: "POST",
-      body: JSON.stringify({
-        ...paymentData,
-        branchId: currentBranchId,
-      }),
-      headers,
-    });
-
-    setCreditEntries((prev) =>
-      prev.map((entry) =>
-        entry.id === response.creditEntry.id ? response.creditEntry : entry
-      )
-    );
-    setCreditPayments((prev) => [response.payment, ...prev]);
-
-    setError(null);
-    return response;
-  } catch (err) {
-    setError("Failed to record payment");
-    console.error(err);
-    throw err;
-  } finally {
-    setLoading(false);
-  }
-};
-  // const recordPayment = async (
-  //   paymentData: Omit<CreditPayment, "id" | "branchId" | "userId">
-  // ) => {
-  //   if (!currentBranchId) {
-  //     setError("No branch selected");
-  //     throw new Error("No branch selected");
-  //   }
-
-  //   try {
-  //     setLoading(true);
-  //     const headers = await getAuthHeaders();
-  //     console.log("paymentData", paymentData);
-  //     const response = await httpClient("/credits/payments", {
-  //       method: "POST",
-  //       body: JSON.stringify({
-  //         ...paymentData,
-  //         branchId: currentBranchId,
-  //       }),
-  //       headers,
-  //     });
-
-  //     setCreditEntries((prev) =>
-  //       prev.map((entry) =>
-  //         entry.id === response.creditEntry.id ? response.creditEntry : entry
-  //       )
-  //     );
-  //     setCreditPayments((prev) => [response.payment, ...prev]);
-
-  //     setError(null);
-  //     return response;
-  //   } catch (err) {
-  //     setError("Failed to record payment");
-  //     console.error(err);
-  //     throw err;
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
-
-  const getPaymentsForEntry = async (creditEntryId: string) => {
-    try {
-      setLoading(true);
-      const headers = await getAuthHeaders();
-      const response = await httpClient(
-        `/credits/payments/entry/${creditEntryId}`,
-        { headers }
-      );
-      setError(null);
-      return response;
-    } catch (err) {
-      setError("Failed to fetch payments");
-      console.error(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getCreditAnalytics = async () => {
+  const getCreditAnalytics = useCallback(async () => {
     if (!currentBranchId) {
       setError("No branch selected");
       throw new Error("No branch selected");
@@ -289,7 +348,7 @@ export const CreditProvider = ({ children }: CreditProviderProps) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentBranchId, getAuthHeaders]);
 
   return (
     <CreditContext.Provider
@@ -305,6 +364,8 @@ export const CreditProvider = ({ children }: CreditProviderProps) => {
         getPaymentsForEntry,
         getCreditAnalytics,
         fetchCreditEntries,
+        getAllCreditPayments,
+        getOutstandingCreditEntries,
       }}
     >
       {children}

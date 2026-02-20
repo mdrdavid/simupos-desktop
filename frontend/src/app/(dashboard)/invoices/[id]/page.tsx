@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
@@ -18,6 +19,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useInvoiceContext } from "@/context/InvoiceContext";
+import { useBusiness } from "@/context/BusinessContext";
+import jsPDF from "jspdf";
 import type { Invoice } from "@/src/types/invoice";
 
 export default function InvoiceDetailPage() {
@@ -25,6 +28,7 @@ export default function InvoiceDetailPage() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const router = useRouter();
   const { getInvoiceById, updateInvoiceStatus } = useInvoiceContext();
+  const { currentBusiness } = useBusiness();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -67,8 +71,107 @@ export default function InvoiceDetailPage() {
   };
 
   const handleDownload = () => {
-    // Implement PDF download functionality
-    console.log("Download invoice PDF");
+    if (!invoice || !currentBusiness) return;
+    
+    try {
+      const doc = new jsPDF();
+      
+      // Add logo if available
+      if (currentBusiness.logo) {
+        try {
+          doc.addImage(currentBusiness.logo, 'PNG', 20, 20, 30, 20);
+        } catch (error) {
+          // Logo failed to load, continue without it
+        }
+      }
+      
+      // Business Details
+      const businessY = currentBusiness.logo ? 50 : 30;
+      doc.setFontSize(16);
+      doc.text(currentBusiness.name || "Business Name", 20, businessY);
+      doc.setFontSize(10);
+      if (currentBusiness.address) {
+        doc.text(currentBusiness.address, 20, businessY + 8);
+      }
+      if (currentBusiness.phone) {
+        doc.text(`Tel: ${currentBusiness.phone}`, 20, businessY + 16);
+      }
+      
+      // Invoice Title
+      doc.setFontSize(20);
+      doc.text("INVOICE", 20, businessY + 30);
+      
+      // Invoice Details
+      doc.setFontSize(10);
+      const detailsY = businessY + 40;
+      doc.text(`Invoice #: ${invoice.invoiceNumber}`, 20, detailsY);
+      doc.text(`Issue Date: ${new Date(invoice.issueDate).toLocaleDateString()}`, 20, detailsY + 8);
+      doc.text(`Due Date: ${new Date(invoice.dueDate).toLocaleDateString()}`, 20, detailsY + 16);
+      
+      // Customer Details
+      const customerY = detailsY + 30;
+      doc.text("Bill To:", 20, customerY);
+      doc.text(invoice.customerName, 20, customerY + 8);
+      if (invoice.customerEmail) {
+        doc.text(invoice.customerEmail, 20, customerY + 16);
+      }
+      if (invoice.customerPhone) {
+        doc.text(invoice.customerPhone, 20, customerY + 24);
+      }
+      if (invoice.customerAddress) {
+        const addressLines = invoice.customerAddress.split('\n');
+        addressLines.forEach((line, index) => {
+          doc.text(line, 20, customerY + 32 + (index * 8));
+        });
+      }
+      
+      // Items Table
+      const tableY = customerY + 60;
+      doc.setFontSize(12);
+      doc.text("Items", 20, tableY);
+      
+      // Table headers
+      doc.setFontSize(10);
+      doc.text("Description", 20, tableY + 10);
+      doc.text("Qty", 120, tableY + 10);
+      doc.text("Unit Price", 140, tableY + 10);
+      doc.text("Total", 170, tableY + 10);
+      
+      // Table rows
+      let currentY = tableY + 20;
+      invoice.items.forEach((item, index) => {
+        doc.text(item.description, 20, currentY);
+        doc.text(item.quantity.toString(), 120, currentY);
+        doc.text(`UGX ${item.unitPrice.toLocaleString()}`, 140, currentY);
+        doc.text(`UGX ${item.total.toLocaleString()}`, 170, currentY);
+        currentY += 8;
+      });
+      
+      // Totals
+      const totalsY = currentY + 10;
+      doc.text(`Subtotal: UGX ${invoice.subtotal.toLocaleString()}`, 140, totalsY);
+      doc.text(`Tax (${invoice.taxRate}%): UGX ${invoice.taxAmount.toLocaleString()}`, 140, totalsY + 8);
+      doc.setFont("bold");
+      doc.text(`Total: UGX ${invoice.totalAmount.toLocaleString()}`, 140, totalsY + 16);
+      doc.setFont("normal");
+      
+      // Status
+      doc.text(`Status: ${invoice.status.toUpperCase()}`, 20, totalsY + 30);
+      
+      // Notes
+      if (invoice.notes) {
+        doc.text("Notes:", 20, totalsY + 45);
+        const notesLines = invoice.notes.split('\n');
+        notesLines.forEach((line, index) => {
+          doc.text(line, 20, totalsY + 55 + (index * 8));
+        });
+      }
+      
+      // Save the PDF
+      doc.save(`invoice-${invoice.invoiceNumber}.pdf`);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+    }
   };
 
   const handleSend = () => {
@@ -97,6 +200,23 @@ export default function InvoiceDetailPage() {
 
   return (
     <div className="space-y-6">
+      {/* Print Styles */}
+      <style jsx global>{`
+        @media print {
+          .no-print {
+            display: none !important;
+          }
+          .printable {
+            background: white !important;
+          }
+          .invoice-logo {
+            max-width: 80px !important;
+            max-height: 80px !important;
+            object-fit: contain !important;
+          }
+        }
+      `}</style>
+      
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -144,8 +264,32 @@ export default function InvoiceDetailPage() {
             <CardContent className="p-6">
               <div className="flex justify-between items-start mb-6">
                 <div>
+                  {currentBusiness?.logo && (
+                    <div className="mb-4 flex justify-start">
+                      <img 
+                        src={currentBusiness.logo} 
+                        alt="Business Logo" 
+                        className="max-w-[80px] max-h-[80px] object-contain rounded-lg invoice-logo"
+                        onError={(e) => {
+                          // Hide the image if it fails to load
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  )}
                   <h2 className="text-2xl font-bold text-gray-900">INVOICE</h2>
                   <p className="text-gray-600">#{invoice.invoiceNumber}</p>
+                  {currentBusiness?.name && (
+                    <div className="mt-2">
+                      <p className="font-semibold text-gray-900">{currentBusiness.name}</p>
+                      {currentBusiness.address && (
+                        <p className="text-sm text-gray-600">{currentBusiness.address}</p>
+                      )}
+                      {currentBusiness.phone && (
+                        <p className="text-sm text-gray-600">{currentBusiness.phone}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-gray-600">Issue Date</p>

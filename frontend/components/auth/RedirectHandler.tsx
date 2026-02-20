@@ -17,11 +17,21 @@ export default function RedirectHandler() {
   useEffect(() => {
     if (pathname !== "/" || hasRedirected) return;
 
+    console.log("RedirectHandler: Starting 8s fallback timeout", {
+      pathname,
+    });
+
     const timeout = setTimeout(() => {
       if (!hasRedirected) {
-        console.log("RedirectHandler: Fallback timeout triggered");
+        console.log("RedirectHandler: Fallback timeout triggered - forcing redirect to login");
         setHasRedirected(true);
-        router.replace("/auth/login");
+        // Use window.location as a last resort if router.replace fails
+        try {
+          router.replace("/auth/login");
+        } catch (e) {
+          console.error("RedirectHandler: router.replace failed, using window.location", e);
+          window.location.href = "/auth/login";
+        }
       }
     }, 8000); // 8 seconds fallback
 
@@ -34,6 +44,12 @@ export default function RedirectHandler() {
       return;
     }
 
+    console.log("RedirectHandler: Checking status", {
+      authLoading,
+      isAuthenticated,
+      loading,
+    });
+
     // Wait for auth loading to complete
     if (authLoading) {
       return;
@@ -41,6 +57,7 @@ export default function RedirectHandler() {
 
     // If not authenticated, go to login page immediately
     if (!isAuthenticated) {
+      console.log("RedirectHandler: Not authenticated, redirecting to login");
       setHasRedirected(true);
       router.replace("/auth/login");
       return;
@@ -48,6 +65,7 @@ export default function RedirectHandler() {
 
     // Wait for business loading to complete if authenticated
     if (loading) {
+      console.log("RedirectHandler: Authenticated but still loading business data");
       return;
     }
 

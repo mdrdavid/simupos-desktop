@@ -102,13 +102,17 @@ function startFrontend() {
       cwd: path.join(__dirname, "frontend"),
       stdio: "inherit",
       shell: true,
+      env: {
+        ...process.env,
+        NEXT_PUBLIC_BACKEND_API: "http://localhost:7000/api/v1",
+      }
     }
   );
 
   return frontendProcess;
 }
 
-app.on("ready", async () => {
+app.whenReady().then(async () => {
   console.log("Electron app ready - Starting initialization...");
 
   // Step 1: Clean database from ALL possible locations
@@ -134,20 +138,21 @@ app.on("ready", async () => {
   console.log("Step 3: Starting backend server...");
   startBackend();
 
-  // Step 4: Wait MUCH longer for backend to initialize database and create tables
+  // Step 4: Wait for backend to initialize database and create tables
   console.log("Step 4: Waiting for database initialization...");
-  await new Promise((resolve) => setTimeout(resolve, 15000)); // 15 seconds
+  await new Promise((resolve) => setTimeout(resolve, 5000)); // 5 seconds is enough for the fast initialization service
 
   // Step 5: Start frontend
   console.log("Step 5: Starting frontend...");
   startFrontend();
 
   // Step 6: Create window
+  console.log("Step 6: Waiting for frontend to be ready...");
   setTimeout(() => {
-    console.log("Step 6: Creating Electron window...");
+    console.log("Creating Electron window...");
     createWindow();
     console.log("✓ Application started successfully!");
-  }, 5000);
+  }, 10000); // 10 seconds for Next.js dev server to be ready
 });
 
 app.on("window-all-closed", function () {

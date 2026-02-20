@@ -96,6 +96,9 @@ export const AppDataSource = new DataSource({
   migrations: ["src/migrations/*.js"],
   subscribers: [],
   enableWAL: true,
+  extra: {
+    busy_timeout: 10000,
+  },
 });
 
 // import { DataSource } from "typeorm";

@@ -8,10 +8,25 @@ import { getDashboardUrl } from "@/src/utils/dashboardUtils";
 
 export default function RedirectHandler() {
   const { loading } = useBusiness();
-  const { businessData, isLoading: authLoading } = useAuth();
+  const { businessData, isLoading: authLoading, isAuthenticated } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [hasRedirected, setHasRedirected] = useState(false);
+
+  // Fallback timeout to prevent being stuck on loading screen
+  useEffect(() => {
+    if (pathname !== "/" || hasRedirected) return;
+
+    const timeout = setTimeout(() => {
+      if (!hasRedirected) {
+        console.log("RedirectHandler: Fallback timeout triggered");
+        setHasRedirected(true);
+        router.replace("/auth/login");
+      }
+    }, 8000); // 8 seconds fallback
+
+    return () => clearTimeout(timeout);
+  }, [pathname, hasRedirected, router]);
 
   useEffect(() => {
     // Only run on root path and prevent multiple redirects
@@ -19,17 +34,29 @@ export default function RedirectHandler() {
       return;
     }
 
-    // Wait for loading to complete
-    if (authLoading || loading) {
+    // Wait for auth loading to complete
+    if (authLoading) {
+      return;
+    }
+
+    // If not authenticated, go to login page immediately
+    if (!isAuthenticated) {
+      setHasRedirected(true);
+      router.replace("/auth/login");
+      return;
+    }
+
+    // Wait for business loading to complete if authenticated
+    if (loading) {
       return;
     }
 
     setHasRedirected(true);
 
     try {
-      // If not authenticated, go to landing page
+      // Fallback check
       if (!businessData) {
-        router.replace("/landing");
+        router.replace("/auth/login");
         return;
       }
 
@@ -47,12 +74,14 @@ export default function RedirectHandler() {
       router.replace(dashboardUrl);
     } catch (error) {
       console.error("Error during redirect:", error);
-      router.replace("/landing");
+      router.replace("/auth/login");
     }
-  }, [businessData, authLoading, loading, router, pathname, hasRedirected]);
+  }, [businessData, authLoading, loading, router, pathname, hasRedirected, isAuthenticated]);
 
   // Show loading state
-  if (authLoading || loading) {
+  // Only show loading if we are still checking auth,
+  // or if we are authenticated and still loading business data
+  if (authLoading || (isAuthenticated && loading)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">

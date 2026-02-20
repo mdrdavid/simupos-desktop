@@ -45,7 +45,7 @@ export default function PendingSubscriptionScreen() {
 
   const handleLogout = () => {
     logout();
-    router.push("/login");
+    router.push("/auth/login");
   };
 
   useEffect(() => {

@@ -27,9 +27,9 @@ export default function RedirectHandler() {
     setHasRedirected(true);
 
     try {
-      // If not authenticated, go to landing page
+      // If not authenticated, go to login page
       if (!businessData) {
-        router.replace("/landing");
+        router.replace("/auth/login");
         return;
       }
 
@@ -47,7 +47,7 @@ export default function RedirectHandler() {
       router.replace(dashboardUrl);
     } catch (error) {
       console.error("Error during redirect:", error);
-      router.replace("/landing");
+      router.replace("/auth/login");
     }
   }, [businessData, authLoading, loading, router, pathname, hasRedirected]);
 

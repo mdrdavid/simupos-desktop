@@ -118,6 +118,18 @@ export const BusinessProvider = ({ children }: BusinessProviderProps) => {
 
     loadBusinesses();
   }, [isAuthenticated, currentBusinessId, businessData, getAuthHeaders]);
+
+  // Safety timeout to ensure loading state is cleared even if loadBusinesses hangs
+  useEffect(() => {
+    if (!loading) return;
+
+    const timeout = setTimeout(() => {
+      console.warn("Business loading timed out, clearing loading state");
+      setLoading(false);
+    }, 15000); // 15 seconds safety timeout
+
+    return () => clearTimeout(timeout);
+  }, [loading]);
   const selectBusiness = async (businessId: string) => {
     try {
       setLoading(true);

@@ -218,6 +218,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     checkAuth();
   }, [checkAuth]);
 
+  // Safety timeout to ensure loading state is cleared even if checkAuth hangs
+  useEffect(() => {
+    if (!isLoading) return;
+
+    const timeout = setTimeout(() => {
+      console.warn("Auth check timed out, clearing loading state");
+      setIsLoading(false);
+    }, 10000); // 10 seconds safety timeout
+
+    return () => clearTimeout(timeout);
+  }, [isLoading]);
+
   const login = useCallback(async (
     credentials:
       | { phone: string; pin: string }
